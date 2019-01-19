@@ -82,6 +82,7 @@ int main(int argc, char **argv) {
     lua_file(Script.c_str());
   }
 
+  std::vector<std::string> failures, successes;
   std::unique_ptr<CompilationDatabase> Compilations;
 
   if (DB != "") {
@@ -224,6 +225,9 @@ int main(int argc, char **argv) {
           }
         }
       }
+      successes.push_back(File);
+    } else {
+      failures.push_back(File);
     }
     // Stop at 1
     // break;
@@ -237,5 +241,20 @@ end:
     lua_cleanup();
   }
 
+  std::cout << "Failures" << std::endl;
+  for (auto f: failures) {
+    std::cout << f << std::endl;
+  }
+
+  std::cout << "Successes" << std::endl;
+  for (auto f: successes) {
+    std::cout << f << std::endl;
+  }
+
+  double n = successes.size();
+  double d = successes.size() + failures.size();
+  double p = (100.0 * n) / d;
+
+  fprintf(stdout, "Success rate %f %\n", p);
   return Ret;
 }
