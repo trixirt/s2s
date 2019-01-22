@@ -105,6 +105,9 @@ int main(int argc, char **argv) {
     string File = p.string();
     string Ext = boost::filesystem::extension(File);
 
+    fprintf(stdout, "\nCurrent file : %s\n", File.c_str());
+    fflush(stdout);
+    
     vector<string> EditorCL, S2SCL, ICL;
     for (auto c : CC.CommandLine)
       ICL.push_back(c);
@@ -202,7 +205,8 @@ int main(int argc, char **argv) {
                 if (GetTestCommandLine(OCL, ICL, tc, ts, IF, OF))
                   Result = Process(OCL);
                 if (!IsTestOk(Result, ts)) {
-                  fprintf(stderr, "FAILED %s\n", File.c_str());
+                  fprintf(stderr, "\nFAILED %s\n", File.c_str());
+		  fflush(stderr);
                   testOk = false;
                 }
                 if (IF != FileCopy)
@@ -241,14 +245,14 @@ end:
     lua_cleanup();
   }
 
-  std::cout << "Failures" << std::endl;
+  fprintf(stdout, "\nFailures\n");
   for (auto f: failures) {
-    std::cout << f << std::endl;
+    fprintf(stdout, "%s\n", f.c_str());
   }
 
-  std::cout << "Successes" << std::endl;
+  fprintf(stdout, "\nSuccesses\n");
   for (auto f: successes) {
-    std::cout << f << std::endl;
+    fprintf(stdout, "%s\n", f.c_str());
   }
 
   double n = successes.size();
@@ -256,5 +260,6 @@ end:
   double p = (100.0 * n) / d;
 
   fprintf(stdout, "Success rate %f %\n", p);
+  fflush(stdout);
   return Ret;
 }

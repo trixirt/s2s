@@ -120,6 +120,7 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
             } else if (count < 0) {
               // TODO : HANDLE
               perror("Write error");
+	      fflush(stderr);
               done = true;
             }
           }
@@ -128,15 +129,21 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
           count = read(stderr_pipe[0], buffer, size);
           buffer[count] = 0;
           fprintf(childerr, "%s", buffer);
-          if (childerr != stdout)
+	  fflush(childerr);
+          if (childerr != stdout) {
             fprintf(stdout, "%s", buffer);
+	    fflush(stdout);
+	  }
         }
         if (FD_ISSET(stdout_pipe[0], &read_fds)) {
           count = read(stdout_pipe[0], buffer, size);
           buffer[count] = 0;
           fprintf(childout, "%s", buffer);
-          if (childout != stdout)
+	  fflush(childout);
+          if (childout != stdout) {
             fprintf(stdout, "%s", buffer);
+	    fflush(stdout);
+	  }
         }
       }
 
