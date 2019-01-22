@@ -37,7 +37,7 @@ static cl::opt<bool> Help("h", cl::desc("Alias for -help"), cl::Hidden);
 static cl::opt<string> Script("script");
 static cl::opt<string> DB("db");
 
-void scrub_cl(vector<string> &CL, string &D, string &F) {
+void scrub_cl(vector<string> &CL, string &D, string &FD, string &F) {
   if (CL.begin() != CL.end())
     CL.erase(CL.begin());
 
@@ -59,10 +59,15 @@ void scrub_cl(vector<string> &CL, string &D, string &F) {
       CL.erase(i);
     }
   }
+  //
+  // Because the source is moving, add an include path
+  // back to the original source
   string sd = "-I";
+  string s = sd + FD;
+  CL.insert(CL.begin(), s);
   for (auto cl : CL) {
     if (boost::algorithm::starts_with(cl, sd)) {
-      string s = cl.substr(2, string::npos);
+      s = cl.substr(2, string::npos);
       path f = s;
       if (f.is_relative()) {
         path p = D / f;
@@ -100,10 +105,11 @@ int main(int argc, char **argv) {
       p = f;
     }
     string exe = CC.CommandLine[0];
-
-    scrub_cl(CC.CommandLine, CC.Directory, CC.Filename);
     string File = p.string();
     string Ext = boost::filesystem::extension(File);
+    string FileDirectory = p.parent_path().string();
+
+    scrub_cl(CC.CommandLine, CC.Directory, FileDirectory, CC.Filename);
 
     fprintf(stdout, "\nCurrent file : %s\n", File.c_str());
     fflush(stdout);
