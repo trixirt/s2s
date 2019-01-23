@@ -56,6 +56,14 @@ function isCxxOption(option)
   return r
 end
 
+function isGccOption(option)
+  local r = false
+  if option == "-Wshadow=local" then
+    r = true
+  end
+  return r
+end
+
 function GetTestCommandLine(CommandLine, TestConfiguration, TestStage, InputFile, OutputFile)
   local r = {}
 
@@ -146,7 +154,12 @@ function GetS2SCommandLine(CommandLine, InputFile, OutputFile, Exe)
     r[#r+1] = "c"
   end
   for k, v in pairs(CommandLine) do
-    r[#r+1] = v
+    if isGccOption(v) then
+    -- clang based tools throw spurious warning when none clang options
+    -- are seen, so remove them from the command line
+    else
+      r[#r+1] = v
+    end
   end
   r[#r+1] = InputFile	
   return r
@@ -181,7 +194,7 @@ function IsEditorOk(I)
 end
 
 function IsOverWriteOk()
-  local r = 1
+  local r = 0
   return r
 end
 
