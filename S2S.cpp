@@ -12,8 +12,10 @@
 #include <string>
 #include <sys/stat.h>
 #include <sys/types.h>
+#ifndef WIN32
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
 #include <vector>
 
 #include <boost/algorithm/string.hpp>
@@ -265,7 +267,7 @@ end:
   double d = successes.size() + failures.size();
   double p = (100.0 * n) / d;
 
-  fprintf(stdout, "Success rate %f %\n", p);
+  fprintf(stdout, "Success rate %f\n", p);
   fflush(stdout);
   return Ret;
 }
