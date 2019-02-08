@@ -13,13 +13,18 @@
 #include <errno.h>
 #include <iostream>
 #include <string>
+#ifndef WIN32
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
 #include <vector>
 using namespace std;
 
 static int _Process(vector<string> &A, string &StdIn, string &StdOut,
                     string &StdErr) {
+#ifdef WIN32
+	return -1;
+#else
   int Status = -1;
   int stdin_pipe[2], stdout_pipe[2], stderr_pipe[2];
   pipe(stdin_pipe);
@@ -190,6 +195,7 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
   }
 
   return WEXITSTATUS(Status);
+#endif
 }
 
 int Process(vector<string> &A, string &StdIn, string &StdOut, string &StdErr) {
