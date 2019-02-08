@@ -15,6 +15,8 @@
 #ifndef WIN32
 #include <sys/wait.h>
 #include <unistd.h>
+#else
+#include <malloc.h> // for _alloca used by boost
 #endif
 #include <vector>
 
@@ -244,10 +246,7 @@ int main(int argc, char **argv) {
     // Stop at 1
     // break;
   }
-
   Ret = 0;
-
-end:
 
   if (Script != "") {
     lua_cleanup();

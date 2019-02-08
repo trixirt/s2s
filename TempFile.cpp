@@ -8,6 +8,9 @@
 // Copyright Tom Rix 2019, all rights reserved.
 //
 //===----------------------------------------------------------------------===//
+#ifdef WIN32
+#include <malloc.h> // for _alloca use in boost
+#endif
 #include <boost/filesystem.hpp>
 #include <boost/system/error_code.hpp>
 #include <iostream>
