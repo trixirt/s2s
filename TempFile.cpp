@@ -19,7 +19,8 @@
 void TempFileName(std::string &Ext, std::string &OF) {
   boost::filesystem::path p = boost::filesystem::temp_directory_path() /
                               boost::filesystem::unique_path();
-  OF = p.native();
+  
+  OF = p.string();
   if (Ext.size())
     OF = OF + Ext;
 }
