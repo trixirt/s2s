@@ -13,7 +13,12 @@
 #include <errno.h>
 #include <iostream>
 #include <string>
-#ifndef WIN32
+#ifdef WIN32
+#include <windows.h>
+#ifndef ssize_t
+#define ssize_t SSIZE_T
+#endif
+#else
 #include <sys/wait.h>
 #include <unistd.h>
 #endif
@@ -22,8 +27,107 @@ using namespace std;
 
 static int _Process(vector<string> &A, string &StdIn, string &StdOut,
                     string &StdErr) {
+	int ret = -1;
+	std::vector<const char *> Argv(A.size() + 1);
+	std::transform(A.begin(), A.end(), Argv.begin(),
+		       [](std::string &str) { return str.c_str(); });
+
+	std::string Args;
+	for (auto a : A) {
+		Args += a;
+		Args += " ";
+	}
+
+	size_t size = 4095;
+	char buffer[4096];
+	ssize_t count;
+	char rbuffer[4096];
+	ssize_t rcount, rtotal;
+
+	FILE *childin = nullptr;
+	if (StdIn.size())
+		childin = fopen(StdIn.c_str(), "rt");
+	
+	FILE *childout = nullptr;
+	if (StdOut.size())
+		childout = fopen(StdOut.c_str(), "wt");
+	if (childout == nullptr)
+		childout = stdout;
+	
+	FILE *childerr = nullptr;
+	if (StdErr.size())
+		childerr = fopen(StdErr.c_str(), "wt");
+	if (childerr == nullptr)
+		childerr = stdout;
+
+	bool done = false;
+
 #ifdef WIN32
-	return -1;
+	// From
+	// https://docs.microsoft.com/en-us/windows/desktop/procthread/creating-a-child-process-with-redirected-input-and-output
+	BOOL status;
+
+	// Set the bInheritHandle flag so pipe handles are inherited.
+	SECURITY_ATTRIBUTES securityAttributes;
+	securityAttributes.nLength = sizeof(SECURITY_ATTRIBUTES); 
+	securityAttributes.bInheritHandle = TRUE; 
+	securityAttributes.lpSecurityDescriptor = NULL; 
+
+	HANDLE stdin_pipe[2] = {NULL, NULL};
+	// create stdin pipe, 0 = read, 1 = write
+	status = CreatePipe(&stdin_pipe[0], &stdin_pipe[1], &securityAttributes, 0);
+	// Ensure the write handle to the pipe for STDIN is not inherited.
+	status = SetHandleInformation(stdin_pipe[1], HANDLE_FLAG_INHERIT, 0);
+
+	HANDLE stdout_pipe[2] = { NULL, NULL };
+	// create stdout pipe, 0 = read, 1 = write
+	status = CreatePipe(&stdout_pipe[0], &stdout_pipe[1], &securityAttributes, 0);
+	// Ensure the read handle to the pipe for STDOUT is not inherited.
+	status = SetHandleInformation(stdout_pipe[0], HANDLE_FLAG_INHERIT, 0);
+
+	HANDLE stderr_pipe[2] = { NULL, NULL };
+	// create stderr pipe, 0 = read, 1 = write
+	status = CreatePipe(&stderr_pipe[0], &stderr_pipe[1], &securityAttributes, 0);
+	// Ensure the read handle to the pipe for STDERR is not inherited.
+	status = SetHandleInformation(stderr_pipe[0], HANDLE_FLAG_INHERIT, 0);
+
+	STARTUPINFOA startupInfo = { 0 };
+	startupInfo.cb = sizeof(STARTUPINFO); 
+	startupInfo.hStdError = stderr_pipe[1];
+	startupInfo.hStdOutput = stdout_pipe[1];
+	startupInfo.hStdInput = stdin_pipe[0];
+	startupInfo.dwFlags |= STARTF_USESTDHANDLES;
+
+	PROCESS_INFORMATION processInformation;
+	LPSTR commandLine = _strdup(Args.c_str());
+	if (commandLine != nullptr) {
+		status = CreateProcessA(NULL,
+			commandLine,
+			NULL,          // process security attributes 
+			NULL,          // primary thread security attributes 
+			TRUE,          // handles are inherited 
+			0,             // creation flags 
+			NULL,          // use parent's environment 
+			NULL,          // use parent's current directory 
+			&startupInfo,
+			&processInformation);
+		if (status == TRUE) {
+			DWORD waitStatus, exitCode;
+			waitStatus = WaitForSingleObject(processInformation.hProcess, INFINITY);
+			status = GetExitCodeProcess(processInformation.hProcess, &exitCode);
+			if (status == TRUE)
+				ret = static_cast<int>(exitCode);
+		}
+		free(commandLine);
+	}
+
+	CloseHandle(stdin_pipe[0]);
+	CloseHandle(stdin_pipe[1]);
+	CloseHandle(stdout_pipe[0]);
+	CloseHandle(stdout_pipe[1]);
+	CloseHandle(stderr_pipe[0]);
+	CloseHandle(stderr_pipe[1]);
+	   
 #else
   int Status = -1;
   int stdin_pipe[2], stdout_pipe[2], stderr_pipe[2];
@@ -38,9 +142,6 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
   } else if (pid == 0) {
     /* child */
     int exec_status;
-    std::vector<const char *> Argv(A.size() + 1);
-    std::transform(A.begin(), A.end(), Argv.begin(),
-                   [](std::string &str) { return str.c_str(); });
 
     dup2(stdin_pipe[0], STDIN_FILENO);
     dup2(stdout_pipe[1], STDOUT_FILENO);
@@ -72,30 +173,6 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
 
     int select_status;
     int wait_status;
-    size_t size = 4095;
-    char buffer[4096];
-    ssize_t count;
-    char rbuffer[4096];
-    ssize_t rcount, rtotal;
-
-    bool done = false;
-    rcount = rtotal = 0;
-
-    FILE *childin = nullptr;
-    if (StdIn.size())
-      childin = fopen(StdIn.c_str(), "rt");
-
-    FILE *childout = nullptr;
-    if (StdOut.size())
-      childout = fopen(StdOut.c_str(), "wt");
-    if (childout == nullptr)
-      childout = stdout;
-
-    FILE *childerr = nullptr;
-    if (StdErr.size())
-      childerr = fopen(StdErr.c_str(), "wt");
-    if (childerr == nullptr)
-      childerr = stdout;
 
     do {
       if (childin != nullptr) {
@@ -184,18 +261,22 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
     close(stderr_pipe[0]);
     close(stderr_pipe[1]);
 
-    if (childin != nullptr)
-      fclose(childin);
+  }
+
+  ret = WEXITSTATUS(Status);
+
+#endif
+
+  if (childin != nullptr)
+	  fclose(childin);
 
     if (childout != stdout)
       fclose(childout);
 
     if (childerr != stdout)
       fclose(childerr);
-  }
 
-  return WEXITSTATUS(Status);
-#endif
+    return ret;
 }
 
 int Process(vector<string> &A, string &StdIn, string &StdOut, string &StdErr) {
