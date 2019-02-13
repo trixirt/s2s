@@ -19,5 +19,6 @@ void TempFileRemove(std::string &F);
 void TempFileCopy(std::string &OF, std::string &IF, std::string &Ext);
 void TempFileOverWrite(std::string &OF, std::string &IF);
 void TempFileRename(std::string &OF, std::string &IF);
+void TempFilePipeName(std::string &OF);
 
 #endif

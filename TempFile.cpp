@@ -66,3 +66,10 @@ void TempFileOverWrite(std::string &OF, std::string &IF) {
   boost::filesystem::copy_file(IP, OP, EC);
   TempFileRemove(IF);
 }
+
+void TempFilePipeName(std::string &OF) {
+	std::string X = "\\\\.\\pipe\\";
+	boost::filesystem::path p = boost::filesystem::unique_path();
+	
+  OF = X + p.string();
+}
