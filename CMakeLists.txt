@@ -37,6 +37,7 @@ add_llvm_executable(s2s
   Process.cpp
   S2S.cpp
   Scripting.cpp
+  Thread.cpp
   TempFile.cpp
   )
 
