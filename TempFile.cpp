@@ -9,6 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 #ifdef WIN32
+#include <windows.h>
 #include <malloc.h> // for _alloca use in boost
 #endif
 #include <boost/filesystem.hpp>
@@ -31,8 +32,31 @@ void TempFileName(const char *Ext, std::string &OF) {
 }
 
 void TempFileRemove(std::string &F) {
+	unsigned retry_count = 0;
+	unsigned retry_max = 59;
+	retry:
   boost::filesystem::path p = F;
-  boost::filesystem::remove(p);
+  if (boost::filesystem::exists(p)) {
+	  bool status;
+	  try {
+		  status = boost::filesystem::remove(p);
+	  }
+	  catch (boost::filesystem::filesystem_error &e) {
+		  // Usual failure on windows
+		  // The exited process is still holding the file
+		  // So delay a bit and try again.
+		  if (retry_count++ < retry_max) {
+#ifdef WIN32
+			  Sleep(500 /* 0.5 sec */);
+#endif
+			  goto retry;
+		  } else {
+			  std::cerr << e.what();
+		  }
+	  }
+  }
+  if (retry_count >= retry_max)
+	  std::cerr << "Failed to delete " << F << " " << retry_count << " times\n";
 }
 
 void TempFileCopy(std::string &OF, std::string &IF, std::string &Ext) {
