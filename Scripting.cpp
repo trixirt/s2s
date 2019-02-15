@@ -47,6 +47,15 @@ int lua_file(const char *file) {
   return r;
 }
 
+static bool getInt(int &O, int idx) {
+  bool ret = false;
+  if (lua_isnumber(L, idx)) {
+    O = lua_tointeger(L, idx);
+    ret = true;
+  }
+  return ret;
+}
+
 static bool getStrings(vector<string> &S, int idx) {
   bool ret = false;
   S.clear();
@@ -88,6 +97,72 @@ static bool getString(string &S, int idx) {
   if (lua_isstring(L, idx)) {
     S = lua_tostring(L, idx);
     ret = true;
+  }
+  return ret;
+}
+
+bool lua_get_int(const char *func, int &O) {
+  bool ret = false;
+  lua_getglobal(L, func);
+  if (lua_pcall(L, 0, 1, 0)) {
+    fprintf(stderr, "Error: %s \n", lua_tostring(L, -1));
+    lua_pop(L, 1);
+  } else {
+    ret = getInt(O, -1);
+  }
+  return ret;
+}
+
+bool lua_get_int(const char *func, int &O, int &I) {
+  bool ret = false;
+  int i = 0;
+  lua_getglobal(L, func);
+  lua_pushinteger(L, I);
+  i++;
+  if (lua_pcall(L, i, 1, 0)) {
+    fprintf(stderr, "Error: %s \n", lua_tostring(L, -1));
+    lua_pop(L, 1);
+  } else {
+    ret = getInt(O, -1);
+  }
+  return ret;
+}
+
+bool lua_get_int(const char *func, int &O, int &I, string &S1) {
+  bool ret = false;
+  int i = 0;
+  lua_getglobal(L, func);
+  lua_pushinteger(L, I);
+  i++;
+  lua_pushstring(L, S1.c_str());
+  i++;
+  if (lua_pcall(L, i, 1, 0)) {
+    fprintf(stderr, "Error: %s \n", lua_tostring(L, -1));
+    lua_pop(L, 1);
+  } else {
+    ret = getInt(O, -1);
+  }
+  return ret;
+}
+
+bool lua_get_int(const char *func, int &O, vector<string> &IL, string &S1,
+                 string &S2, string &S3) {
+  bool ret = false;
+  int i = 0;
+  lua_getglobal(L, func);
+  putStrings(IL);
+  i++;
+  lua_pushstring(L, S1.c_str());
+  i++;
+  lua_pushstring(L, S2.c_str());
+  i++;
+  lua_pushstring(L, S3.c_str());
+  i++;
+  if (lua_pcall(L, i, 1, 0)) {
+    fprintf(stderr, "Error: %s \n", lua_tostring(L, -1));
+    lua_pop(L, 1);
+  } else {
+    ret = getInt(O, -1);
   }
   return ret;
 }
@@ -325,59 +400,6 @@ bool lua_get_string(const char *func, string &OS, string &S1) {
     lua_pop(L, 1);
   } else {
     ret = getString(OS, -1);
-  }
-  return ret;
-}
-
-static bool getInt(int &O, int idx) {
-  bool ret = false;
-  if (lua_isnumber(L, idx)) {
-    O = lua_tointeger(L, idx);
-    ret = true;
-  }
-  return ret;
-}
-
-bool lua_get_int(const char *func, int &O) {
-  bool ret = false;
-  lua_getglobal(L, func);
-  if (lua_pcall(L, 0, 1, 0)) {
-    fprintf(stderr, "Error: %s \n", lua_tostring(L, -1));
-    lua_pop(L, 1);
-  } else {
-    ret = getInt(O, -1);
-  }
-  return ret;
-}
-
-bool lua_get_int(const char *func, int &O, int &I) {
-  bool ret = false;
-  int i = 0;
-  lua_getglobal(L, func);
-  lua_pushinteger(L, I);
-  i++;
-  if (lua_pcall(L, i, 1, 0)) {
-    fprintf(stderr, "Error: %s \n", lua_tostring(L, -1));
-    lua_pop(L, 1);
-  } else {
-    ret = getInt(O, -1);
-  }
-  return ret;
-}
-
-bool lua_get_int(const char *func, int &O, int &I, string &S1) {
-  bool ret = false;
-  int i = 0;
-  lua_getglobal(L, func);
-  lua_pushinteger(L, I);
-  i++;
-  lua_pushstring(L, S1.c_str());
-  i++;
-  if (lua_pcall(L, i, 1, 0)) {
-    fprintf(stderr, "Error: %s \n", lua_tostring(L, -1));
-    lua_pop(L, 1);
-  } else {
-    ret = getInt(O, -1);
   }
   return ret;
 }

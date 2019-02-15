@@ -39,6 +39,7 @@ using namespace boost::filesystem;
 static cl::opt<bool> Help("h", cl::desc("Alias for -help"), cl::Hidden);
 
 static cl::opt<string> Script("script");
+static cl::opt<string> Filter("filter");
 static cl::opt<string> DB("db");
 
 void scrub_cl(vector<string> &CL, string &D, string &FD, string &F) {
@@ -86,10 +87,11 @@ void scrub_cl(vector<string> &CL, string &D, string &FD, string &F) {
 int main(int argc, char **argv) {
   int Ret = 1;
   cl::ParseCommandLineOptions(argc, argv);
-  if (Script != "") {
-    lua_init();
+  lua_init();
+  if (Filter != "")
+    lua_file(Filter.c_str());
+  if (Script != "")
     lua_file(Script.c_str());
-  }
 
   std::vector<std::string> failures, successes;
   std::unique_ptr<CompilationDatabase> Compilations;
@@ -108,16 +110,20 @@ int main(int argc, char **argv) {
     } else {
       p = f;
     }
-    string exe = CC.CommandLine[0];
+    string Exe = CC.CommandLine[0];
     string File = p.string();
     string Ext = boost::filesystem::extension(File);
     string FileDirectory = p.parent_path().string();
+
+    if (Filter != "")
+      if (!FilterDBEntry(CC.CommandLine, CC.Filename, CC.Directory, Exe))
+        continue;
 
     scrub_cl(CC.CommandLine, CC.Directory, FileDirectory, CC.Filename);
 
     fprintf(stdout, "\nCurrent file : %s\n", File.c_str());
     fflush(stdout);
-    
+
     vector<string> EditorCL, S2SCL, ICL;
     for (auto c : CC.CommandLine)
       ICL.push_back(c);
@@ -132,7 +138,7 @@ int main(int argc, char **argv) {
       if (GetS2SExtension(s2sExt)) {
         if (s2sExt == "stderr" || s2sExt == "stdout") {
           string s2sStdout, s2sStderr;
-          if (GetS2SCommandLine(S2SCL, ICL, FileCopy, dummy, exe)) {
+          if (GetS2SCommandLine(S2SCL, ICL, FileCopy, dummy, Exe)) {
             Result = Process(S2SCL, dummy, s2sStdout, s2sStderr);
             if (IsS2SOk(Result)) {
               if (GetEditorExtension(editorExt)) {
@@ -141,7 +147,7 @@ int main(int argc, char **argv) {
                   if (s2sExt == "stderr")
                     editorStdin = s2sStderr;
                   if (GetEditorCommandLine(EditorCL, ICL, dummy, FileCopy,
-                                           exe)) {
+                                           Exe)) {
                     Result = Process(EditorCL, editorStdin, dummy, dummy);
                     if (IsEditorOk(Result)) {
                       editorOk = true;
@@ -160,7 +166,7 @@ int main(int argc, char **argv) {
           string s2sOut;
           TempFileName(s2sExt, s2sOut);
           if (s2sOut.size()) {
-            if (GetS2SCommandLine(S2SCL, ICL, FileCopy, s2sOut, exe)) {
+            if (GetS2SCommandLine(S2SCL, ICL, FileCopy, s2sOut, Exe)) {
               Result = Process(S2SCL);
               if (IsS2SOk(Result)) {
                 string editorExt;
@@ -168,7 +174,7 @@ int main(int argc, char **argv) {
                   if (editorExt == "stdin") {
                     string editorStdin = s2sOut;
                     if (GetEditorCommandLine(EditorCL, ICL, dummy, FileCopy,
-                                             exe)) {
+                                             Exe)) {
                       Result = Process(EditorCL, editorStdin, dummy, dummy);
                       if (IsEditorOk(Result)) {
                         editorOk = true;
@@ -176,7 +182,7 @@ int main(int argc, char **argv) {
                     }
                   } else {
                     if (GetEditorCommandLine(EditorCL, ICL, s2sOut, FileCopy,
-                                             exe)) {
+                                             Exe)) {
                       Result = Process(EditorCL);
                       if (IsEditorOk(Result)) {
                         editorOk = true;
@@ -197,7 +203,7 @@ int main(int argc, char **argv) {
       vector<string> TC;
       string sext = boost::filesystem::extension(p);
       testOk = true;
-      if (GetTestConfigurations(TC, exe, sext)) {
+      if (GetTestConfigurations(TC, Exe, sext)) {
         for (auto tc : TC) {
           vector<string> TS;
           if (GetTestStages(TS, tc)) {
@@ -216,7 +222,7 @@ int main(int argc, char **argv) {
                   Result = Process(OCL);
                 if (!IsTestOk(Result, ts)) {
                   fprintf(stderr, "\nFAILED %s\n", File.c_str());
-		  fflush(stderr);
+                  fflush(stderr);
                   testOk = false;
                 }
                 if (IF != FileCopy)
@@ -252,21 +258,26 @@ int main(int argc, char **argv) {
     lua_cleanup();
   }
 
-  fprintf(stdout, "\nFailures\n");
-  for (auto f: failures) {
-    fprintf(stdout, "%s\n", f.c_str());
+  if (failures.size() + successes.size()) {
+    fprintf(stdout, "\nFailures\n");
+    for (auto f : failures) {
+      fprintf(stdout, "%s\n", f.c_str());
+    }
+
+    fprintf(stdout, "\nSuccesses\n");
+    for (auto f : successes) {
+      fprintf(stdout, "%s\n", f.c_str());
+    }
+
+    double n = successes.size();
+    double d = successes.size() + failures.size();
+    double p = (100.0 * n) / d;
+
+    fprintf(stdout, "Success rate %f\n", p);
+  } else {
+    fprintf(stdout, "No work done\n");
   }
-
-  fprintf(stdout, "\nSuccesses\n");
-  for (auto f: successes) {
-    fprintf(stdout, "%s\n", f.c_str());
-  }
-
-  double n = successes.size();
-  double d = successes.size() + failures.size();
-  double p = (100.0 * n) / d;
-
-  fprintf(stdout, "Success rate %f\n", p);
   fflush(stdout);
+
   return Ret;
 }

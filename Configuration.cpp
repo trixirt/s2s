@@ -2,6 +2,16 @@
 #include <iostream>
 using namespace std;
 
+bool FilterDBEntry(std::vector<std::string> &ICL, std::string &IF,
+                   std::string &ID, std::string &Exe) {
+  bool ret = true;
+  int O = -1;
+  LuaFilterDBEntry(O, ICL, IF, ID, Exe);
+  if (O != 1)
+    ret = false;
+  return ret;
+}
+
 bool GetTestConfigurations(vector<string> &TC, string &Exe, string &Ext) {
   bool ret = LuaGetTestConfigurations(TC, Exe, Ext);
   return ret;

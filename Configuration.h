@@ -1,6 +1,8 @@
 #ifndef _CONFIGURATION_H
 #define _CONFIGURATION_H
 
+extern bool FilterDBEntry(std::vector<std::string> &ICL, std::string &IF,
+                          std::string &ID, std::string &Exe);
 extern bool GetTestConfigurations(std::vector<std::string> &TC, std::string &X,
                                   std::string &E);
 extern bool GetTestStages(std::vector<std::string> &TS, std::string &TC);

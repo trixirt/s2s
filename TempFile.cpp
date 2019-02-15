@@ -9,8 +9,8 @@
 //
 //===----------------------------------------------------------------------===//
 #ifdef WIN32
-#include <windows.h>
 #include <malloc.h> // for _alloca use in boost
+#include <windows.h>
 #endif
 #include <boost/filesystem.hpp>
 #include <boost/system/error_code.hpp>
@@ -20,7 +20,7 @@
 void TempFileName(std::string &Ext, std::string &OF) {
   boost::filesystem::path p = boost::filesystem::temp_directory_path() /
                               boost::filesystem::unique_path();
-  
+
   OF = p.string();
   if (Ext.size())
     OF = OF + Ext;
@@ -32,31 +32,30 @@ void TempFileName(const char *Ext, std::string &OF) {
 }
 
 void TempFileRemove(std::string &F) {
-	unsigned retry_count = 0;
-	unsigned retry_max = 59;
-	retry:
+  unsigned retry_count = 0;
+  unsigned retry_max = 59;
+retry:
   boost::filesystem::path p = F;
   if (boost::filesystem::exists(p)) {
-	  bool status;
-	  try {
-		  status = boost::filesystem::remove(p);
-	  }
-	  catch (boost::filesystem::filesystem_error &e) {
-		  // Usual failure on windows
-		  // The exited process is still holding the file
-		  // So delay a bit and try again.
-		  if (retry_count++ < retry_max) {
+    bool status;
+    try {
+      status = boost::filesystem::remove(p);
+    } catch (boost::filesystem::filesystem_error &e) {
+      // Usual failure on windows
+      // The exited process is still holding the file
+      // So delay a bit and try again.
+      if (retry_count++ < retry_max) {
 #ifdef WIN32
-			  Sleep(500 /* 0.5 sec */);
+        Sleep(500 /* 0.5 sec */);
 #endif
-			  goto retry;
-		  } else {
-			  std::cerr << e.what();
-		  }
-	  }
+        goto retry;
+      } else {
+        std::cerr << e.what();
+      }
+    }
   }
   if (retry_count >= retry_max)
-	  std::cerr << "Failed to delete " << F << " " << retry_count << " times\n";
+    std::cerr << "Failed to delete " << F << " " << retry_count << " times\n";
 }
 
 void TempFileCopy(std::string &OF, std::string &IF, std::string &Ext) {
@@ -92,8 +91,8 @@ void TempFileOverWrite(std::string &OF, std::string &IF) {
 }
 
 void TempFilePipeName(std::string &OF) {
-	std::string X = "\\\\.\\pipe\\";
-	boost::filesystem::path p = boost::filesystem::unique_path();
-	
+  std::string X = "\\\\.\\pipe\\";
+  boost::filesystem::path p = boost::filesystem::unique_path();
+
   OF = X + p.string();
 }
