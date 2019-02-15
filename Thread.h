@@ -12,6 +12,8 @@
 #define THREAD_H
 
 #ifdef WIN32
+#include <windows.h>
+#include <stdio.h>
 struct IOParameters {
   HANDLE pipe;
   FILE *file;
