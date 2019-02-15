@@ -176,8 +176,8 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
     fd_set read_fds, write_fds;
     struct timeval tv;
 
-    tv.tv_sec = 1;
-    tv.tv_usec = 0;
+    tv.tv_sec = 0;
+    tv.tv_usec = 10;
 
     int select_status;
     int wait_status;
@@ -189,7 +189,10 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
     ssize_t rcount, rtotal;
     rcount = rtotal = 0;
 
+    unsigned no_work_done = 0;
+
     do {
+
       if (childin != nullptr) {
         if (!feof(childin)) {
           if (rcount == rtotal) {
@@ -208,7 +211,7 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
       errno = 0;
       select_status = select(FD_SETSIZE, &read_fds, &write_fds, NULL, &tv);
       if (select_status > 0) {
-
+        no_work_done = 0;
         if (rcount != rtotal) {
           if (FD_ISSET(stdin_pipe[1], &write_fds)) {
             count = write(stdin_pipe[1], &rbuffer[rtotal], rcount - rtotal);
@@ -242,6 +245,12 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
             fflush(stdout);
           }
         }
+      } else {
+        no_work_done++;
+        usleep(10 * no_work_done);
+        // cap at 2 sec
+        if (no_work_done > 200)
+          no_work_done = 0;
       }
 
       wait_status = waitpid(pid, &Status, WNOHANG);
