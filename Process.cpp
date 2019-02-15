@@ -9,15 +9,13 @@
 //
 //===----------------------------------------------------------------------===//
 #include "TempFile.h"
+#include "Thread.h"
 #include <algorithm>
 #include <errno.h>
 #include <iostream>
 #include <string>
 #ifdef WIN32
 #include <windows.h>
-#ifndef ssize_t
-#define ssize_t SSIZE_T
-#endif
 #else
 #include <sys/wait.h>
 #include <unistd.h>
@@ -25,222 +23,119 @@
 #include <vector>
 using namespace std;
 
-struct IOParameters {
-	HANDLE pipe;
-	FILE *file;
-	FILE *std;
-};
-
-DWORD WINAPI ReadOutputWorkFunction(LPVOID param) {
-	struct IOParameters *ioParameters = static_cast<struct IOParameters *>(param);
-	DWORD ret = 0;
-	
-	DWORD bufferSize = 4095;
-	char buffer[4096];
-	DWORD bytesRead;
-	BOOL status;
-	while (1) {
-		bytesRead = 0;
-		status = ReadFile(ioParameters->pipe, &buffer[0], bufferSize, &bytesRead, NULL);
-		if (status == TRUE) {
-			if (bytesRead > 0) {
-				buffer[bytesRead] = 0;
-				fprintf(ioParameters->file, "%s", buffer);
-				fflush(ioParameters->file);
-				if (ioParameters->file != ioParameters->std) {
-					fprintf(ioParameters->std, "%s", buffer);
-					fflush(ioParameters->std);
-				}
-			}
-		} else {
-			break;
-		}
-	}
-	delete ioParameters;
-	return ret;
-}
-
-HANDLE ReadOutput(HANDLE pipe, FILE *file, FILE *std) {
-	HANDLE thread = INVALID_HANDLE_VALUE;
-	DWORD threadId = 0;
-	struct IOParameters *ioParameters = new struct IOParameters;
-	if (ioParameters != nullptr) {
-		ioParameters->pipe = pipe;
-		ioParameters->file = file;
-		ioParameters->std = std;
-		thread = CreateThread(NULL, 0, ReadOutputWorkFunction, static_cast<LPVOID>(ioParameters), 0, &threadId);
-	}
-	return thread;
-}
-
-DWORD WINAPI WriteInputWorkFunction(LPVOID param) {
-	struct IOParameters *ioParameters = static_cast<struct IOParameters *>(param);
-	DWORD ret = 0;
-	char buffer[4096];
-	size_t size, rcount, rtotal;
-	rcount = rtotal = 0;
-	size = 4095;
-
-	DWORD bytesToWrite, bytesWritten;
-	BOOL status;
-	while (1) {
-		if (!feof(ioParameters->file)) {
-			if (rcount == rtotal) {
-				rcount = fread(&buffer[0], 1, size, ioParameters->file);
-				rtotal = 0;
-			}
-		} else {
-			if (rcount == rtotal)
-				break;
-		}
-		bytesToWrite = rcount - rtotal;
-		if (bytesToWrite > 0) {
-			bytesWritten = 0;
-			status = WriteFile(ioParameters->pipe, &buffer[rtotal], bytesToWrite, &bytesWritten, NULL);
-			if (status == TRUE)
-				rtotal += bytesWritten;
-			else
-				break;
-		}
-	}
-	CloseHandle(ioParameters->pipe);
-	delete ioParameters;
-	return ret;
-}
-
-HANDLE WriteInput(HANDLE pipe, FILE *file) {
-	HANDLE thread = INVALID_HANDLE_VALUE;
-	DWORD threadId = 0;
-	struct IOParameters *ioParameters = new struct IOParameters;
-	if (ioParameters != nullptr) {
-		ioParameters->pipe = pipe;
-		ioParameters->file = file;
-		ioParameters->std = nullptr;
-		thread = CreateThread(NULL, 0, WriteInputWorkFunction, static_cast<LPVOID>(ioParameters), 0, &threadId);
-	}
-	return thread;
-}
-
 static int _Process(vector<string> &A, string &StdIn, string &StdOut,
                     string &StdErr) {
-	int ret = -1;
-	std::vector<const char *> Argv(A.size() + 1);
-	std::transform(A.begin(), A.end(), Argv.begin(),
-		       [](std::string &str) { return str.c_str(); });
+  int ret = -1;
+  std::vector<const char *> Argv(A.size() + 1);
+  std::transform(A.begin(), A.end(), Argv.begin(),
+                 [](std::string &str) { return str.c_str(); });
 
-	std::string Args;
-	for (auto a : A) {
-		Args += a;
-		Args += " ";
-	}
+  std::string Args;
+  for (auto a : A) {
+    Args += a;
+    Args += " ";
+  }
 
-	size_t size = 4095;
-	char buffer[4096];
-	ssize_t count;
-	char rbuffer[4096];
-	ssize_t rcount, rtotal;
+  FILE *childin = nullptr;
+  if (StdIn.size())
+    childin = fopen(StdIn.c_str(), "rt");
 
-	FILE *childin = nullptr;
-	if (StdIn.size())
-		childin = fopen(StdIn.c_str(), "rt");
-	
-	FILE *childout = nullptr;
-	if (StdOut.size())
-		childout = fopen(StdOut.c_str(), "wt");
-	if (childout == nullptr)
-		childout = stdout;
-	
-	FILE *childerr = nullptr;
-	if (StdErr.size())
-		childerr = fopen(StdErr.c_str(), "wt");
-	if (childerr == nullptr)
-		childerr = stdout;
+  FILE *childout = nullptr;
+  if (StdOut.size())
+    childout = fopen(StdOut.c_str(), "wt");
+  if (childout == nullptr)
+    childout = stdout;
 
-	bool done = false;
+  FILE *childerr = nullptr;
+  if (StdErr.size())
+    childerr = fopen(StdErr.c_str(), "wt");
+  if (childerr == nullptr)
+    childerr = stdout;
+
+  bool done = false;
 
 #ifdef WIN32
-	// From
-	// https://docs.microsoft.com/en-us/windows/desktop/procthread/creating-a-child-process-with-redirected-input-and-output
-	BOOL status;
+  // From
+  // https://docs.microsoft.com/en-us/windows/desktop/procthread/creating-a-child-process-with-redirected-input-and-output
+  BOOL status;
 
-	// Set the bInheritHandle flag so pipe handles are inherited.
-	SECURITY_ATTRIBUTES securityAttributes;
-	securityAttributes.nLength = sizeof(SECURITY_ATTRIBUTES); 
-	securityAttributes.bInheritHandle = TRUE; 
-	securityAttributes.lpSecurityDescriptor = NULL; 
+  // Set the bInheritHandle flag so pipe handles are inherited.
+  SECURITY_ATTRIBUTES securityAttributes;
+  securityAttributes.nLength = sizeof(SECURITY_ATTRIBUTES);
+  securityAttributes.bInheritHandle = TRUE;
+  securityAttributes.lpSecurityDescriptor = NULL;
 
-	HANDLE stdin_pipe[2] = {NULL, NULL};
-	// create stdin pipe, 0 = read, 1 = write
-	status = CreatePipe(&stdin_pipe[0], &stdin_pipe[1], &securityAttributes, 0);
-	// Ensure the write handle to the pipe for STDIN is not inherited.
-	status = SetHandleInformation(stdin_pipe[1], HANDLE_FLAG_INHERIT, 0);
+  HANDLE stdin_pipe[2] = {NULL, NULL};
+  // create stdin pipe, 0 = read, 1 = write
+  status = CreatePipe(&stdin_pipe[0], &stdin_pipe[1], &securityAttributes, 0);
+  // Ensure the write handle to the pipe for STDIN is not inherited.
+  status = SetHandleInformation(stdin_pipe[1], HANDLE_FLAG_INHERIT, 0);
 
-	HANDLE stdout_pipe[2] = { NULL, NULL };
-	// create stdout pipe, 0 = read, 1 = write
-	status = CreatePipe(&stdout_pipe[0], &stdout_pipe[1], &securityAttributes, 0);
-	// Ensure the read handle to the pipe for STDOUT is not inherited.
-	status = SetHandleInformation(stdout_pipe[0], HANDLE_FLAG_INHERIT, 0);
+  HANDLE stdout_pipe[2] = {NULL, NULL};
+  // create stdout pipe, 0 = read, 1 = write
+  status = CreatePipe(&stdout_pipe[0], &stdout_pipe[1], &securityAttributes, 0);
+  // Ensure the read handle to the pipe for STDOUT is not inherited.
+  status = SetHandleInformation(stdout_pipe[0], HANDLE_FLAG_INHERIT, 0);
 
-	HANDLE stderr_pipe[2] = { NULL, NULL };
-	// create stderr pipe, 0 = read, 1 = write
-	status = CreatePipe(&stderr_pipe[0], &stderr_pipe[1], &securityAttributes, 0);
-	// Ensure the read handle to the pipe for STDERR is not inherited.
-	status = SetHandleInformation(stderr_pipe[0], HANDLE_FLAG_INHERIT, 0);
+  HANDLE stderr_pipe[2] = {NULL, NULL};
+  // create stderr pipe, 0 = read, 1 = write
+  status = CreatePipe(&stderr_pipe[0], &stderr_pipe[1], &securityAttributes, 0);
+  // Ensure the read handle to the pipe for STDERR is not inherited.
+  status = SetHandleInformation(stderr_pipe[0], HANDLE_FLAG_INHERIT, 0);
 
-	STARTUPINFOA startupInfo = { 0 };
-	startupInfo.cb = sizeof(STARTUPINFO); 
-	startupInfo.hStdError = stderr_pipe[1];
-	startupInfo.hStdOutput = stdout_pipe[1];
-	startupInfo.hStdInput = stdin_pipe[0];
-	startupInfo.dwFlags |= STARTF_USESTDHANDLES;
+  STARTUPINFOA startupInfo = {0};
+  startupInfo.cb = sizeof(STARTUPINFO);
+  startupInfo.hStdError = stderr_pipe[1];
+  startupInfo.hStdOutput = stdout_pipe[1];
+  startupInfo.hStdInput = stdin_pipe[0];
+  startupInfo.dwFlags |= STARTF_USESTDHANDLES;
 
-	PROCESS_INFORMATION processInformation;
-	LPSTR commandLine = _strdup(Args.c_str());
-	if (commandLine != nullptr) {
-		status = CreateProcessA(NULL,
-			commandLine,
-			NULL,          // process security attributes 
-			NULL,          // primary thread security attributes 
-			TRUE,          // handles are inherited 
-			0,             // creation flags 
-			NULL,          // use parent's environment 
-			NULL,          // use parent's current directory 
-			&startupInfo,
-			&processInformation);
-		if (status == TRUE) {
-			DWORD waitStatus, exitCode;
-			DWORD ioHandles = 0;
-			HANDLE ioWaitHandles[ 3 ] = { INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE };
-			HANDLE ioThread;
-			ioThread = ReadOutput(stderr_pipe[0], childerr, stderr);
-			if (ioThread != INVALID_HANDLE_VALUE)
-				ioWaitHandles[ioHandles++] = ioThread;
-			ioThread = ReadOutput(stdout_pipe[0], childout, stdout);
-			if (ioThread != INVALID_HANDLE_VALUE)
-				ioWaitHandles[ioHandles++] = ioThread;
-			if (childin != nullptr) {
-				ioThread = WriteInput(stdin_pipe[1], childin);
-				if (ioThread != INVALID_HANDLE_VALUE)
-					ioWaitHandles[ioHandles++] = ioThread;
-			}
-			if (ioHandles > 0)
-				WaitForMultipleObjects(ioHandles, &ioWaitHandles[0], TRUE, INFINITY);
+  PROCESS_INFORMATION processInformation;
+  LPSTR commandLine = _strdup(Args.c_str());
+  if (commandLine != nullptr) {
+    status = CreateProcessA(NULL, commandLine,
+                            NULL, // process security attributes
+                            NULL, // primary thread security attributes
+                            TRUE, // handles are inherited
+                            0,    // creation flags
+                            NULL, // use parent's environment
+                            NULL, // use parent's current directory
+                            &startupInfo, &processInformation);
+    if (status == TRUE) {
+      DWORD waitStatus, exitCode;
+      DWORD ioHandles = 0;
+      HANDLE ioWaitHandles[3] = {INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE,
+                                 INVALID_HANDLE_VALUE};
+      HANDLE ioThread;
+      ioThread = ReadOutput(stderr_pipe[0], childerr, stderr);
+      if (ioThread != INVALID_HANDLE_VALUE)
+        ioWaitHandles[ioHandles++] = ioThread;
+      ioThread = ReadOutput(stdout_pipe[0], childout, stdout);
+      if (ioThread != INVALID_HANDLE_VALUE)
+        ioWaitHandles[ioHandles++] = ioThread;
+      if (childin != nullptr) {
+        ioThread = WriteInput(stdin_pipe[1], childin);
+        if (ioThread != INVALID_HANDLE_VALUE)
+          ioWaitHandles[ioHandles++] = ioThread;
+      }
+      if (ioHandles > 0)
+        WaitForMultipleObjects(ioHandles, &ioWaitHandles[0], TRUE, INFINITY);
 
-			waitStatus = WaitForSingleObject(processInformation.hProcess, INFINITY);
-			status = GetExitCodeProcess(processInformation.hProcess, &exitCode);
-			if (status == TRUE)
-				ret = static_cast<int>(exitCode);
-		}
-		free(commandLine);
-	}
+      waitStatus = WaitForSingleObject(processInformation.hProcess, INFINITY);
+      status = GetExitCodeProcess(processInformation.hProcess, &exitCode);
+      if (status == TRUE)
+        ret = static_cast<int>(exitCode);
+    }
+    free(commandLine);
+  }
 
-	CloseHandle(stdin_pipe[0]);
-	CloseHandle(stdin_pipe[1]);
-	CloseHandle(stdout_pipe[0]);
-	CloseHandle(stdout_pipe[1]);
-	CloseHandle(stderr_pipe[0]);
-	CloseHandle(stderr_pipe[1]);
-	   
+  CloseHandle(stdin_pipe[0]);
+  CloseHandle(stdin_pipe[1]);
+  CloseHandle(stdout_pipe[0]);
+  CloseHandle(stdout_pipe[1]);
+  CloseHandle(stderr_pipe[0]);
+  CloseHandle(stderr_pipe[1]);
+
 #else
   int Status = -1;
   int stdin_pipe[2], stdout_pipe[2], stderr_pipe[2];
@@ -287,6 +182,13 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
     int select_status;
     int wait_status;
 
+    size_t size = 4095;
+    char buffer[4096];
+    ssize_t count;
+    char rbuffer[4096];
+    ssize_t rcount, rtotal;
+    rcount = rtotal = 0;
+
     do {
       if (childin != nullptr) {
         if (!feof(childin)) {
@@ -315,7 +217,7 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
             } else if (count < 0) {
               // TODO : HANDLE
               perror("Write error");
-	      fflush(stderr);
+              fflush(stderr);
               done = true;
             }
           }
@@ -324,21 +226,21 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
           count = read(stderr_pipe[0], buffer, size);
           buffer[count] = 0;
           fprintf(childerr, "%s", buffer);
-	  fflush(childerr);
+          fflush(childerr);
           if (childerr != stdout) {
             fprintf(stdout, "%s", buffer);
-	    fflush(stdout);
-	  }
+            fflush(stdout);
+          }
         }
         if (FD_ISSET(stdout_pipe[0], &read_fds)) {
           count = read(stdout_pipe[0], buffer, size);
           buffer[count] = 0;
           fprintf(childout, "%s", buffer);
-	  fflush(childout);
+          fflush(childout);
           if (childout != stdout) {
             fprintf(stdout, "%s", buffer);
-	    fflush(stdout);
-	  }
+            fflush(stdout);
+          }
         }
       }
 
@@ -373,7 +275,6 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
     close(stdout_pipe[1]);
     close(stderr_pipe[0]);
     close(stderr_pipe[1]);
-
   }
 
   ret = WEXITSTATUS(Status);
@@ -381,15 +282,15 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
 #endif
 
   if (childin != nullptr)
-	  fclose(childin);
+    fclose(childin);
 
-    if (childout != stdout)
-      fclose(childout);
+  if (childout != stdout)
+    fclose(childout);
 
-    if (childerr != stdout)
-      fclose(childerr);
+  if (childerr != stdout)
+    fclose(childerr);
 
-    return ret;
+  return ret;
 }
 
 int Process(vector<string> &A, string &StdIn, string &StdOut, string &StdErr) {
