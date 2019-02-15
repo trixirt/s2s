@@ -86,20 +86,41 @@ void scrub_cl(vector<string> &CL, string &D, string &FD, string &F) {
 
 int main(int argc, char **argv) {
   int Ret = 1;
+  bool FatalError = false;
   cl::ParseCommandLineOptions(argc, argv);
   lua_init();
   if (Filter != "")
-    lua_file(Filter.c_str());
+    if (lua_file(Filter.c_str())) {
+      FatalError = true;
+      fprintf(stderr, "Fatal error in filter file %s\n", Filter.c_str());
+      fflush(stderr);
+    }
   if (Script != "")
-    lua_file(Script.c_str());
+    if (lua_file(Script.c_str())) {
+      FatalError = true;
+      fprintf(stderr, "Fatal error in script file %s\n", Script.c_str());
+      fflush(stderr);
+    }
 
   std::vector<std::string> failures, successes;
   std::unique_ptr<CompilationDatabase> Compilations;
 
   if (DB != "") {
-    string err;
-    Compilations = CompilationDatabase::loadFromDirectory(DB, err);
+    string Err;
+    Compilations = CompilationDatabase::loadFromDirectory(DB, Err);
+    if (Compilations == nullptr) {
+      FatalError = true;
+      fprintf(
+          stderr,
+          "Fatal error loading compile_command.json from from %s directory\n",
+          DB.c_str());
+      fprintf(stderr, "Load error : %s\n", Err.c_str());
+      fflush(stderr);
+    }
   }
+
+  if (FatalError == true)
+    goto bail;
 
   for (auto CC : Compilations->getAllCompileCommands()) {
     string Exe = CC.CommandLine[0];
@@ -262,10 +283,6 @@ int main(int argc, char **argv) {
   }
   Ret = 0;
 
-  if (Script != "") {
-    lua_cleanup();
-  }
-
   if (failures.size() + successes.size()) {
     fprintf(stdout, "\nFailures\n");
     for (auto f : failures) {
@@ -286,6 +303,9 @@ int main(int argc, char **argv) {
     fprintf(stdout, "No work done\n");
   }
   fflush(stdout);
+
+bail:
+  lua_cleanup();
 
   return Ret;
 }
