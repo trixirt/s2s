@@ -102,28 +102,35 @@ int main(int argc, char **argv) {
   }
 
   for (auto CC : Compilations->getAllCompileCommands()) {
-	string Exe = CC.CommandLine[0];
-	if (Filter != "")
-	  if (!FilterDBEntry(CC.CommandLine, CC.Filename, CC.Directory, Exe))
+    string Exe = CC.CommandLine[0];
+    if (Filter != "")
+      if (!FilterDBEntry(CC.CommandLine, CC.Filename, CC.Directory, Exe))
         continue;
 
-	path f = CC.Filename;
+    path f = CC.Filename;
     path d = CC.Directory;
     path p;
-    if (f.is_relative()) {
-      p = canonical(f, d);
-    } else {
+
+    if (f.is_absolute())
       p = f;
+    else
+      p = boost::filesystem::absolute(f, d);
+    file_status stat(boost::filesystem::status(p));
+    string File = p.string();
+
+    if (stat.type() == boost::filesystem::file_not_found) {
+      fprintf(stderr, "\nCould not find file : %s\n", File.c_str());
+      fflush(stderr);
+      continue;
     }
 
-    string File = p.string();
+    fprintf(stdout, "\nCurrent file : %s\n", File.c_str());
+    fflush(stdout);
+
     string Ext = boost::filesystem::extension(File);
     string FileDirectory = p.parent_path().string();
 
     scrub_cl(CC.CommandLine, CC.Directory, FileDirectory, CC.Filename);
-
-    fprintf(stdout, "\nCurrent file : %s\n", File.c_str());
-    fflush(stdout);
 
     vector<string> EditorCL, S2SCL, ICL;
     for (auto c : CC.CommandLine)
