@@ -102,7 +102,12 @@ int main(int argc, char **argv) {
   }
 
   for (auto CC : Compilations->getAllCompileCommands()) {
-    path f = CC.Filename;
+	string Exe = CC.CommandLine[0];
+	if (Filter != "")
+	  if (!FilterDBEntry(CC.CommandLine, CC.Filename, CC.Directory, Exe))
+        continue;
+
+	path f = CC.Filename;
     path d = CC.Directory;
     path p;
     if (f.is_relative()) {
@@ -110,14 +115,10 @@ int main(int argc, char **argv) {
     } else {
       p = f;
     }
-    string Exe = CC.CommandLine[0];
+
     string File = p.string();
     string Ext = boost::filesystem::extension(File);
     string FileDirectory = p.parent_path().string();
-
-    if (Filter != "")
-      if (!FilterDBEntry(CC.CommandLine, CC.Filename, CC.Directory, Exe))
-        continue;
 
     scrub_cl(CC.CommandLine, CC.Directory, FileDirectory, CC.Filename);
 
