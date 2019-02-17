@@ -10,6 +10,7 @@
 //===----------------------------------------------------------------------===//
 #include "Thread.h"
 #ifdef WIN32
+#include <assert.h>
 #include <windows.h>
 
 static DWORD WINAPI ReadOutputWorkFunction(LPVOID param) {
@@ -35,6 +36,21 @@ static DWORD WINAPI ReadOutputWorkFunction(LPVOID param) {
         }
       }
     } else {
+#if _DEBUG
+      wchar_t *message;
+      DWORD lastError = GetLastError();
+      FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                        FORMAT_MESSAGE_FROM_SYSTEM |
+                        FORMAT_MESSAGE_IGNORE_INSERTS,
+                    NULL, lastError, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                    (LPTSTR)&message, 0, NULL);
+      fwprintf(stderr, L"%x %s", (unsigned)ioParameters->pipe, message);
+      fflush(stderr);
+      LocalFree(message);
+      DWORD flags = 0;
+      DWORD status;
+      status = GetHandleInformation(ioParameters->pipe, &flags);
+#endif
       break;
     }
   }
@@ -47,11 +63,15 @@ HANDLE ReadOutput(HANDLE pipe, FILE *file, FILE *std) {
   DWORD threadId = 0;
   struct IOParameters *ioParameters = new struct IOParameters;
   if (ioParameters != nullptr) {
+    BOOL status;
     ioParameters->pipe = pipe;
     ioParameters->file = file;
     ioParameters->std = std;
     thread = CreateThread(NULL, 0, ReadOutputWorkFunction,
                           static_cast<LPVOID>(ioParameters), 0, &threadId);
+    assert(thread != INVALID_HANDLE_VALUE);
+    status = SetHandleInformation(thread, HANDLE_FLAG_INHERIT, 0);
+    assert(status == TRUE);
   }
   return thread;
 }
@@ -81,10 +101,23 @@ static DWORD WINAPI WriteInputWorkFunction(LPVOID param) {
       bytesWritten = 0;
       status = WriteFile(ioParameters->pipe, &buffer[rtotal], bytesToWrite,
                          &bytesWritten, NULL);
-      if (status == TRUE)
+      if (status == TRUE) {
         rtotal += bytesWritten;
-      else
+      } else {
+#ifdef _DEBUG
+        wchar_t *message;
+        DWORD lastError = GetLastError();
+        FormatMessage(
+            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+                FORMAT_MESSAGE_IGNORE_INSERTS,
+            NULL, lastError, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+            (LPTSTR)&message, 0, NULL);
+        fwprintf(stderr, L"%x %s", (unsigned)ioParameters->pipe, message);
+        fflush(stderr);
+        LocalFree(message);
+#endif
         break;
+      }
     }
   }
   CloseHandle(ioParameters->pipe);
@@ -97,11 +130,15 @@ HANDLE WriteInput(HANDLE pipe, FILE *file) {
   DWORD threadId = 0;
   struct IOParameters *ioParameters = new struct IOParameters;
   if (ioParameters != nullptr) {
+    BOOL status;
     ioParameters->pipe = pipe;
     ioParameters->file = file;
     ioParameters->std = nullptr;
     thread = CreateThread(NULL, 0, WriteInputWorkFunction,
                           static_cast<LPVOID>(ioParameters), 0, &threadId);
+    assert(thread != INVALID_HANDLE_VALUE);
+    status = SetHandleInformation(thread, HANDLE_FLAG_INHERIT, 0);
+    assert(status == TRUE);
   }
   return thread;
 }
