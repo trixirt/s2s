@@ -41,6 +41,8 @@ static cl::opt<bool> Help("h", cl::desc("Alias for -help"), cl::Hidden);
 static cl::opt<string> Script("script");
 static cl::opt<string> Filter("filter");
 static cl::opt<string> DB("db");
+static cl::opt<bool> Verbose("verbose");
+static cl::opt<bool> SaveTemps("save-temps");
 
 void scrub_cl(vector<string> &CL, string &D, string &FD, string &F) {
   if (CL.begin() != CL.end())
@@ -168,6 +170,12 @@ int main(int argc, char **argv) {
         if (s2sExt == "stderr" || s2sExt == "stdout") {
           string s2sStdout, s2sStderr;
           if (GetS2SCommandLine(S2SCL, ICL, FileCopy, dummy, Exe)) {
+            if (Verbose) {
+              cout << "S2S Command line" << std::endl;
+              for (auto s : S2SCL)
+                cout << s << " ";
+              cout << std::endl;
+            }
             Result = Process(S2SCL, dummy, s2sStdout, s2sStderr);
             if (IsS2SOk(Result)) {
               if (GetEditorExtension(editorExt)) {
@@ -188,8 +196,10 @@ int main(int argc, char **argv) {
               }
               // yeah!
             }
-            TempFileRemove(s2sStdout);
-            TempFileRemove(s2sStderr);
+            if (!SaveTemps) {
+              TempFileRemove(s2sStdout);
+              TempFileRemove(s2sStderr);
+            }
           }
         } else {
           string s2sOut;
@@ -221,7 +231,9 @@ int main(int argc, char **argv) {
                 }
               }
             }
-            TempFileRemove(s2sOut);
+            if (!SaveTemps) {
+              TempFileRemove(s2sOut);
+            }
           }
         }
       }
@@ -254,7 +266,7 @@ int main(int argc, char **argv) {
                   fflush(stderr);
                   testOk = false;
                 }
-                if (IF != FileCopy)
+                if (IF != FileCopy && !SaveTemps)
                   TempFileRemove(IF);
                 IF = OF;
               }
