@@ -15,6 +15,7 @@
 #include <iostream>
 #include <string>
 #ifdef WIN32
+#include <assert.h>
 #include <windows.h>
 #else
 #include <sys/wait.h>
@@ -37,18 +38,24 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
   }
 
   FILE *childin = nullptr;
-  if (StdIn.size())
+  if (StdIn.size()) {
     childin = fopen(StdIn.c_str(), "rt");
+    assert(childin != nullptr);
+  }
 
   FILE *childout = nullptr;
-  if (StdOut.size())
+  if (StdOut.size()) {
     childout = fopen(StdOut.c_str(), "wt");
+    assert(childout != nullptr);
+  }
   if (childout == nullptr)
     childout = stdout;
 
   FILE *childerr = nullptr;
-  if (StdErr.size())
+  if (StdErr.size()) {
     childerr = fopen(StdErr.c_str(), "wt");
+    assert(childerr != nullptr);
+  }
   if (childerr == nullptr)
     childerr = stdout;
 
@@ -68,20 +75,42 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
   HANDLE stdin_pipe[2] = {NULL, NULL};
   // create stdin pipe, 0 = read, 1 = write
   status = CreatePipe(&stdin_pipe[0], &stdin_pipe[1], &securityAttributes, 0);
+  assert(status == TRUE);
   // Ensure the write handle to the pipe for STDIN is not inherited.
   status = SetHandleInformation(stdin_pipe[1], HANDLE_FLAG_INHERIT, 0);
+  assert(status == TRUE);
 
   HANDLE stdout_pipe[2] = {NULL, NULL};
   // create stdout pipe, 0 = read, 1 = write
   status = CreatePipe(&stdout_pipe[0], &stdout_pipe[1], &securityAttributes, 0);
+  assert(status == TRUE);
   // Ensure the read handle to the pipe for STDOUT is not inherited.
   status = SetHandleInformation(stdout_pipe[0], HANDLE_FLAG_INHERIT, 0);
+  assert(status == TRUE);
 
   HANDLE stderr_pipe[2] = {NULL, NULL};
   // create stderr pipe, 0 = read, 1 = write
   status = CreatePipe(&stderr_pipe[0], &stderr_pipe[1], &securityAttributes, 0);
+  assert(status == TRUE);
   // Ensure the read handle to the pipe for STDERR is not inherited.
   status = SetHandleInformation(stderr_pipe[0], HANDLE_FLAG_INHERIT, 0);
+  assert(status == TRUE);
+
+  DWORD ioHandles = 0;
+  HANDLE ioWaitHandles[3] = {INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE,
+                             INVALID_HANDLE_VALUE};
+  HANDLE ioThread;
+  ioThread = ReadOutput(stderr_pipe[0], childerr, stderr);
+  if (ioThread != INVALID_HANDLE_VALUE)
+    ioWaitHandles[ioHandles++] = ioThread;
+  ioThread = ReadOutput(stdout_pipe[0], childout, stdout);
+  if (ioThread != INVALID_HANDLE_VALUE)
+    ioWaitHandles[ioHandles++] = ioThread;
+  if (childin != nullptr) {
+    ioThread = WriteInput(stdin_pipe[1], childin);
+    if (ioThread != INVALID_HANDLE_VALUE)
+      ioWaitHandles[ioHandles++] = ioThread;
+  }
 
   STARTUPINFOA startupInfo = {0};
   startupInfo.cb = sizeof(STARTUPINFO);
@@ -103,21 +132,7 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
                             &startupInfo, &processInformation);
     if (status == TRUE) {
       DWORD waitStatus, exitCode;
-      DWORD ioHandles = 0;
-      HANDLE ioWaitHandles[3] = {INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE,
-                                 INVALID_HANDLE_VALUE};
-      HANDLE ioThread;
-      ioThread = ReadOutput(stderr_pipe[0], childerr, stderr);
-      if (ioThread != INVALID_HANDLE_VALUE)
-        ioWaitHandles[ioHandles++] = ioThread;
-      ioThread = ReadOutput(stdout_pipe[0], childout, stdout);
-      if (ioThread != INVALID_HANDLE_VALUE)
-        ioWaitHandles[ioHandles++] = ioThread;
-      if (childin != nullptr) {
-        ioThread = WriteInput(stdin_pipe[1], childin);
-        if (ioThread != INVALID_HANDLE_VALUE)
-          ioWaitHandles[ioHandles++] = ioThread;
-      }
+
       if (ioHandles > 0)
         WaitForMultipleObjects(ioHandles, &ioWaitHandles[0], TRUE, INFINITY);
 
