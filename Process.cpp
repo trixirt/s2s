@@ -12,10 +12,10 @@
 #include "Thread.h"
 #include <algorithm>
 #include <errno.h>
+#include <assert.h>
 #include <iostream>
 #include <string>
 #ifdef WIN32
-#include <assert.h>
 #include <windows.h>
 #else
 #include <sys/wait.h>
