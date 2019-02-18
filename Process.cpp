@@ -72,7 +72,7 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
   securityAttributes.bInheritHandle = TRUE;
   securityAttributes.lpSecurityDescriptor = NULL;
 
-  HANDLE stdin_pipe[2] = {NULL, NULL};
+  HANDLE stdin_pipe[2] = {INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE};
   // create stdin pipe, 0 = read, 1 = write
   status = CreatePipe(&stdin_pipe[0], &stdin_pipe[1], &securityAttributes, 0);
   assert(status == TRUE);
@@ -80,7 +80,7 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
   status = SetHandleInformation(stdin_pipe[1], HANDLE_FLAG_INHERIT, 0);
   assert(status == TRUE);
 
-  HANDLE stdout_pipe[2] = {NULL, NULL};
+  HANDLE stdout_pipe[2] = {INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE};
   // create stdout pipe, 0 = read, 1 = write
   status = CreatePipe(&stdout_pipe[0], &stdout_pipe[1], &securityAttributes, 0);
   assert(status == TRUE);
@@ -88,7 +88,7 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
   status = SetHandleInformation(stdout_pipe[0], HANDLE_FLAG_INHERIT, 0);
   assert(status == TRUE);
 
-  HANDLE stderr_pipe[2] = {NULL, NULL};
+  HANDLE stderr_pipe[2] = {INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE};
   // create stderr pipe, 0 = read, 1 = write
   status = CreatePipe(&stderr_pipe[0], &stderr_pipe[1], &securityAttributes, 0);
   assert(status == TRUE);
@@ -144,12 +144,15 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
     free(commandLine);
   }
 
-  CloseHandle(stdin_pipe[0]);
-  CloseHandle(stdin_pipe[1]);
-  CloseHandle(stdout_pipe[0]);
-  CloseHandle(stdout_pipe[1]);
-  CloseHandle(stderr_pipe[0]);
-  CloseHandle(stderr_pipe[1]);
+  // Order pipe closing so child side is closed first
+  HANDLE pipes[6] = {stdin_pipe[0],  stdin_pipe[1],  stdout_pipe[1],
+                     stdout_pipe[0], stderr_pipe[1], stderr_pipe[0]};
+  for (unsigned idx = 0; idx < 6; idx++) {
+    DWORD flags = 0;
+    status = GetHandleInformation(pipes[idx], &flags);
+    if (status == TRUE)
+      CloseHandle(pipes[idx]);
+  }
 
 #else
   int Status = -1;
