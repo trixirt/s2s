@@ -13,6 +13,28 @@
 #include <assert.h>
 #include <windows.h>
 
+#if _DEBUG
+static void DebugIOFailure(HANDLE pipe) {
+  DWORD lastError = GetLastError();
+  // It is expected that an exiting child will close its pipe
+  // So do not report these as errors
+  if (lastError != ERROR_BROKEN_PIPE) {
+    wchar_t *message = nullptr;
+    FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+                      FORMAT_MESSAGE_IGNORE_INSERTS,
+                  NULL, lastError, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                  (LPTSTR)&message, 0, NULL);
+    if (message != nullptr) {
+      fwprintf(stderr, L"%x %s", (unsigned)pipe, message);
+      fflush(stderr);
+      LocalFree(message);
+    }
+  }
+}
+#else
+#define DebugIOFailure(a)
+#endif
+
 static DWORD WINAPI ReadOutputWorkFunction(LPVOID param) {
   struct IOParameters *ioParameters = static_cast<struct IOParameters *>(param);
   DWORD ret = 0;
@@ -36,21 +58,7 @@ static DWORD WINAPI ReadOutputWorkFunction(LPVOID param) {
         }
       }
     } else {
-#if _DEBUG
-      wchar_t *message;
-      DWORD lastError = GetLastError();
-      FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                        FORMAT_MESSAGE_FROM_SYSTEM |
-                        FORMAT_MESSAGE_IGNORE_INSERTS,
-                    NULL, lastError, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                    (LPTSTR)&message, 0, NULL);
-      fwprintf(stderr, L"%x %s", (unsigned)ioParameters->pipe, message);
-      fflush(stderr);
-      LocalFree(message);
-      DWORD flags = 0;
-      DWORD status;
-      status = GetHandleInformation(ioParameters->pipe, &flags);
-#endif
+      DebugIOFailure(ioParameters->pipe);
       break;
     }
   }
@@ -104,18 +112,7 @@ static DWORD WINAPI WriteInputWorkFunction(LPVOID param) {
       if (status == TRUE) {
         rtotal += bytesWritten;
       } else {
-#ifdef _DEBUG
-        wchar_t *message;
-        DWORD lastError = GetLastError();
-        FormatMessage(
-            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
-                FORMAT_MESSAGE_IGNORE_INSERTS,
-            NULL, lastError, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-            (LPTSTR)&message, 0, NULL);
-        fwprintf(stderr, L"%x %s", (unsigned)ioParameters->pipe, message);
-        fflush(stderr);
-        LocalFree(message);
-#endif
+        DebugIOFailure(ioParameters->pipe);
         break;
       }
     }
