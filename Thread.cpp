@@ -92,7 +92,7 @@ static DWORD WINAPI WriteInputWorkFunction(LPVOID param) {
   rcount = rtotal = 0;
   size = 4095;
 
-  DWORD bytesToWrite, bytesWritten;
+  DWORD bytesToWrite, bytesWritten, flags;
   BOOL status;
   while (1) {
     if (!feof(ioParameters->file)) {
@@ -117,7 +117,13 @@ static DWORD WINAPI WriteInputWorkFunction(LPVOID param) {
       }
     }
   }
-  CloseHandle(ioParameters->pipe);
+  //
+  // May need to close the pipe to signal to the child
+  // that all the input has been written.  But if the child
+  // exited early the handle is already closed.  So check..
+  status = GetHandleInformation(ioParameters->pipe, &flags);
+  if (status == TRUE)
+    CloseHandle(ioParameters->pipe);
   delete ioParameters;
   return ret;
 }
