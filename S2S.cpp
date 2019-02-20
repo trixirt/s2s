@@ -177,15 +177,45 @@ int main(int argc, char **argv) {
               cout << std::endl;
             }
             Result = Process(S2SCL, dummy, s2sStdout, s2sStderr);
+
+            if (SaveTemps) {
+              fprintf(stdout, "S2S input  temp file %s\n", FileCopy.c_str());
+              fprintf(stdout, "S2S stdout temp file %s\n", s2sStdout.c_str());
+              fprintf(stdout, "S2S stderr temp file %s\n", s2sStderr.c_str());
+            }
+
             if (IsS2SOk(Result)) {
               if (GetEditorExtension(editorExt)) {
                 if (editorExt == "stdin") {
                   string editorStdin = s2sStdout;
                   if (s2sExt == "stderr")
                     editorStdin = s2sStderr;
+                  string editorStdout, editorStderr;
                   if (GetEditorCommandLine(EditorCL, ICL, dummy, FileCopy,
                                            Exe)) {
-                    Result = Process(EditorCL, editorStdin, dummy, dummy);
+                    if (Verbose) {
+                      cout << "Editor Command line" << std::endl;
+                      for (auto s : EditorCL)
+                        cout << s << " ";
+                      cout << std::endl;
+                    }
+                    Result = Process(EditorCL, editorStdin, editorStdout,
+                                     editorStderr);
+
+                    if (SaveTemps) {
+                      fprintf(stdout, "Editor input temp file %s\n",
+                              FileCopy.c_str());
+                      fprintf(stdout, "Editor stdin temp file %s\n",
+                              editorStdin.c_str());
+                      fprintf(stdout, "Editor stdout temp file %s\n",
+                              editorStdout.c_str());
+                      fprintf(stdout, "Editor stderr temp file %s\n",
+                              editorStderr.c_str());
+                    } else {
+                      TempFileRemove(editorStdout);
+                      TempFileRemove(editorStderr);
+                    }
+
                     if (IsEditorOk(Result)) {
                       editorOk = true;
                       // yeah
@@ -206,6 +236,12 @@ int main(int argc, char **argv) {
           TempFileName(s2sExt, s2sOut);
           if (s2sOut.size()) {
             if (GetS2SCommandLine(S2SCL, ICL, FileCopy, s2sOut, Exe)) {
+              if (Verbose) {
+                cout << "S2S Command line" << std::endl;
+                for (auto s : S2SCL)
+                  cout << s << " ";
+                cout << std::endl;
+              }
               Result = Process(S2SCL);
               if (IsS2SOk(Result)) {
                 string editorExt;
@@ -233,6 +269,8 @@ int main(int argc, char **argv) {
             }
             if (!SaveTemps) {
               TempFileRemove(s2sOut);
+            } else {
+              fprintf(stdout, "S2S output temp file %s\n", s2sOut.c_str());
             }
           }
         }
@@ -266,8 +304,9 @@ int main(int argc, char **argv) {
                   fflush(stderr);
                   testOk = false;
                 }
-                if (IF != FileCopy && !SaveTemps)
+                if (IF != FileCopy || !SaveTemps) {
                   TempFileRemove(IF);
+                }
                 IF = OF;
               }
             }
@@ -279,6 +318,13 @@ int main(int argc, char **argv) {
     if (testOk) {
       vector<string> DiffCL;
       if (GetDiffCommandLine(DiffCL, File, FileCopy)) {
+        if (Verbose) {
+          cout << "Diff Command line" << std::endl;
+          for (auto s : DiffCL)
+            cout << s << " ";
+          cout << std::endl;
+        }
+
         Result = Process(DiffCL);
         if (IsDiffOk(Result)) {
           if (IsOverWriteOk()) {
