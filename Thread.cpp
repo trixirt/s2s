@@ -18,7 +18,8 @@ static void DebugIOFailure(HANDLE pipe) {
   DWORD lastError = GetLastError();
   // It is expected that an exiting child will close its pipe
   // So do not report these as errors
-  if (lastError != ERROR_BROKEN_PIPE) {
+  if ((lastError != ERROR_BROKEN_PIPE) &&
+      (lastError != ERROR_NO_DATA /* The pipe is being closed */)) {
     wchar_t *message = nullptr;
     FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
                       FORMAT_MESSAGE_IGNORE_INSERTS,
@@ -39,8 +40,8 @@ static DWORD WINAPI ReadOutputWorkFunction(LPVOID param) {
   struct IOParameters *ioParameters = static_cast<struct IOParameters *>(param);
   DWORD ret = 0;
 
-  DWORD bufferSize = 4095;
-  char buffer[4096];
+  DWORD bufferSize = 4096;
+  char buffer[4097];
   DWORD bytesRead;
   BOOL status;
   while (1) {
@@ -63,7 +64,7 @@ static DWORD WINAPI ReadOutputWorkFunction(LPVOID param) {
     }
   }
   delete ioParameters;
-  return ret;
+  ExitThread(ret);
 }
 
 HANDLE ReadOutput(HANDLE pipe, FILE *file, FILE *std) {
@@ -87,10 +88,10 @@ HANDLE ReadOutput(HANDLE pipe, FILE *file, FILE *std) {
 static DWORD WINAPI WriteInputWorkFunction(LPVOID param) {
   struct IOParameters *ioParameters = static_cast<struct IOParameters *>(param);
   DWORD ret = 0;
-  char buffer[4096];
-  size_t size, rcount, rtotal;
-  rcount = rtotal = 0;
-  size = 4095;
+  char buffer[4097];
+  size_t size, rcount, rtotal, ftotal;
+  rcount = rtotal = ftotal = 0;
+  size = 4096;
 
   DWORD bytesToWrite, bytesWritten, flags;
   BOOL status;
@@ -111,12 +112,29 @@ static DWORD WINAPI WriteInputWorkFunction(LPVOID param) {
                          &bytesWritten, NULL);
       if (status == TRUE) {
         rtotal += bytesWritten;
+        ftotal += bytesWritten;
       } else {
         DebugIOFailure(ioParameters->pipe);
         break;
       }
     }
   }
+
+  // Nothing left to give
+  // But child may still want its stdin to be open
+  // So keep feeding it ^Z's until it gives up.
+  while (1) {
+    buffer[0] = 0x1a; // ^Z
+    bytesWritten = 0;
+    status = WriteFile(ioParameters->pipe, &buffer[0], 1, &bytesWritten, NULL);
+    if (status == TRUE) {
+      ftotal += bytesWritten;
+    } else {
+      DebugIOFailure(ioParameters->pipe);
+      break;
+    }
+  }
+
   //
   // May need to close the pipe to signal to the child
   // that all the input has been written.  But if the child
@@ -124,8 +142,9 @@ static DWORD WINAPI WriteInputWorkFunction(LPVOID param) {
   status = GetHandleInformation(ioParameters->pipe, &flags);
   if (status == TRUE)
     CloseHandle(ioParameters->pipe);
+
   delete ioParameters;
-  return ret;
+  ExitThread(ret);
 }
 
 HANDLE WriteInput(HANDLE pipe, FILE *file) {
