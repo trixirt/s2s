@@ -11,8 +11,8 @@
 #include "TempFile.h"
 #include "Thread.h"
 #include <algorithm>
-#include <errno.h>
 #include <assert.h>
+#include <errno.h>
 #include <iostream>
 #include <string>
 #ifdef WIN32
@@ -23,6 +23,44 @@
 #endif
 #include <vector>
 using namespace std;
+
+#ifdef WIN32
+static void ReportCreateProcessError(LPSTR commandLine) {
+  DWORD lastError;
+  wchar_t *message = nullptr;
+
+  fprintf(stderr, "Failed to start process : %s\n", commandLine);
+
+  lastError = GetLastError();
+  FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+                    FORMAT_MESSAGE_IGNORE_INSERTS,
+                NULL, lastError, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                (LPTSTR)&message, 0, NULL);
+  if (message != nullptr) {
+    fwprintf(stderr, L"Reason : %s\n", message);
+    LocalFree(message);
+  }
+  fflush(stderr);
+}
+
+#if _DEBUG
+static void DebugIOThreadExitCode(DWORD size, HANDLE *handles) {
+  assert(size > 0);
+  for (DWORD i = 0; i < size; i++) {
+    BOOL status;
+    DWORD exitCode;
+    status = GetExitCodeThread(handles[i], &exitCode);
+    assert(status == TRUE);
+    if (exitCode == STILL_ACTIVE)
+      fprintf(stderr, "Thread %d %x is still active\n", (int)i,
+              (unsigned)handles[i]);
+    assert(exitCode == 0);
+  }
+}
+#else
+#define DebugIOThreadExitCode(a, b)
+#endif
+#endif
 
 static int _Process(vector<string> &A, string &StdIn, string &StdOut,
                     string &StdErr) {
@@ -57,7 +95,7 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
     assert(childerr != nullptr);
   }
   if (childerr == nullptr)
-    childerr = stdout;
+    childerr = stderr;
 
   bool done = false;
 
@@ -100,12 +138,16 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
   HANDLE ioWaitHandles[3] = {INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE,
                              INVALID_HANDLE_VALUE};
   HANDLE ioThread;
+  // Start up the stdout and stderr threads
+  // These need to be running and blocking for child output
   ioThread = ReadOutput(stderr_pipe[0], childerr, stderr);
   if (ioThread != INVALID_HANDLE_VALUE)
     ioWaitHandles[ioHandles++] = ioThread;
   ioThread = ReadOutput(stdout_pipe[0], childout, stdout);
   if (ioThread != INVALID_HANDLE_VALUE)
     ioWaitHandles[ioHandles++] = ioThread;
+  // Startup the input to the child's stdin
+  // If the child is expecting input, it should be ready to read
   if (childin != nullptr) {
     ioThread = WriteInput(stdin_pipe[1], childin);
     if (ioThread != INVALID_HANDLE_VALUE)
@@ -133,17 +175,35 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
     if (status == TRUE) {
       DWORD waitStatus, exitCode;
 
-      if (ioHandles > 0)
-        WaitForMultipleObjects(ioHandles, &ioWaitHandles[0], TRUE, INFINITY);
+      // Close the i/o pipes owned by the child
+      HANDLE pipes[3] = {stdin_pipe[0], stdout_pipe[1], stderr_pipe[1]};
+      for (unsigned idx = 0; idx < 3; idx++) {
+        DWORD flags = 0;
+        status = GetHandleInformation(pipes[idx], &flags);
+        if (status == TRUE)
+          CloseHandle(pipes[idx]);
+      }
 
-      waitStatus = WaitForSingleObject(processInformation.hProcess, INFINITY);
+      // Make sure all i/o from child has been consumed
+      // It is expected that exiting child will close its i/o pipe
+      // and so cause a ReadFile error of ERROR_BROKEN_PIPE
+      if (ioHandles > 0) {
+        waitStatus = WaitForMultipleObjects(ioHandles, &ioWaitHandles[0], TRUE,
+                                            INFINITE);
+        assert(waitStatus == WAIT_OBJECT_0);
+        DebugIOThreadExitCode(ioHandles, &ioWaitHandles[0]);
+      }
+
+      waitStatus = WaitForSingleObject(processInformation.hProcess, INFINITE);
       status = GetExitCodeProcess(processInformation.hProcess, &exitCode);
       if (status == TRUE)
         ret = static_cast<int>(exitCode);
+
+    } else {
+      ReportCreateProcessError(commandLine);
     }
     free(commandLine);
   }
-
   // Order pipe closing so child side is closed first
   HANDLE pipes[6] = {stdin_pipe[0],  stdin_pipe[1],  stdout_pipe[1],
                      stdout_pipe[0], stderr_pipe[1], stderr_pipe[0]};
@@ -314,7 +374,7 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
   if (childout != stdout)
     fclose(childout);
 
-  if (childerr != stdout)
+  if (childerr != stderr)
     fclose(childerr);
 
   return ret;
