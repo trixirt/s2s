@@ -280,9 +280,9 @@ int main(int argc, char **argv) {
     bool testOk = false;
     if (editorOk) {
       vector<string> TC;
-      string sext = boost::filesystem::extension(p);
+      string Ext = boost::filesystem::extension(p);
       testOk = true;
-      if (GetTestConfigurations(TC, Exe, sext)) {
+      if (GetTestConfigurations(TC, Exe, Ext)) {
         for (auto tc : TC) {
           vector<string> TS;
           if (GetTestStages(TS, tc)) {
@@ -297,17 +297,25 @@ int main(int argc, char **argv) {
                 vector<string> OCL;
                 for (auto c : CC.CommandLine)
                   ICL.push_back(c);
-                if (GetTestCommandLine(OCL, ICL, tc, ts, IF, OF))
+                if (GetTestCommandLine(OCL, ICL, tc, ts, IF, OF)) {
+                  if (Verbose) {
+                    cout << "Test Command line" << std::endl;
+                    for (auto s : OCL)
+                      cout << s << " ";
+                    cout << std::endl;
+                  }
+
                   Result = Process(OCL);
-                if (!IsTestOk(Result, ts)) {
-                  fprintf(stderr, "\nFAILED %s\n", File.c_str());
-                  fflush(stderr);
-                  testOk = false;
+                  if (!IsTestOk(Result, ts)) {
+                    fprintf(stderr, "\nFAILED %s\n", File.c_str());
+                    fflush(stderr);
+                    testOk = false;
+                  }
+                  if (IF != FileCopy || !SaveTemps) {
+                    TempFileRemove(IF);
+                  }
+                  IF = OF;
                 }
-                if (IF != FileCopy || !SaveTemps) {
-                  TempFileRemove(IF);
-                }
-                IF = OF;
               }
             }
           }
