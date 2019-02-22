@@ -11,7 +11,6 @@
 function FilterDBEntry(CommandLine, InputFile, InputDirectory, Exe)
   local r = 0
   local ext = string.match(InputFile, '[^.]+$')
-  print (ext)
   if ext == "cpp" then
      r = 1
   end
