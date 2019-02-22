@@ -9,7 +9,7 @@ extern bool GetTestStages(std::vector<std::string> &TS, std::string &TC);
 extern bool GetTestCommandLine(std::vector<std::string> &OCL,
                                std::vector<std::string> &ICL, std::string &TC,
                                std::string &TS, std::string &IF,
-                               std::string &OF);
+                               std::string &OF, std::string &Exe);
 extern bool GetTestExtension(std::string &E, std::string &TS);
 extern bool IsTestOk(int &I, std::string &TS);
 

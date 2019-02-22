@@ -39,7 +39,7 @@ using namespace boost::filesystem;
 static cl::opt<bool> Help("h", cl::desc("Alias for -help"), cl::Hidden);
 
 static cl::opt<string> Script("script");
-static cl::opt<string> Filter("filter");
+static cl::opt<string> Filter("db-filter");
 static cl::opt<string> DB("db");
 static cl::opt<bool> Verbose("verbose");
 static cl::opt<bool> SaveTemps("save-temps");
@@ -297,7 +297,7 @@ int main(int argc, char **argv) {
                 vector<string> OCL;
                 for (auto c : CC.CommandLine)
                   ICL.push_back(c);
-                if (GetTestCommandLine(OCL, ICL, tc, ts, IF, OF)) {
+                if (GetTestCommandLine(OCL, ICL, tc, ts, IF, OF, Exe)) {
                   if (Verbose) {
                     cout << "Test Command line" << std::endl;
                     for (auto s : OCL)
@@ -311,7 +311,7 @@ int main(int argc, char **argv) {
                     fflush(stderr);
                     testOk = false;
                   }
-                  if (IF != FileCopy || !SaveTemps) {
+                  if (IF != FileCopy && !SaveTemps) {
                     TempFileRemove(IF);
                   }
                   IF = OF;
@@ -337,12 +337,21 @@ int main(int argc, char **argv) {
         if (IsDiffOk(Result)) {
           if (IsOverWriteOk()) {
             TempFileOverWrite(File, FileCopy);
+          } else if (!SaveTemps) {
+            TempFileRemove(FileCopy);
           }
+        } else if (!SaveTemps) {
+          TempFileRemove(FileCopy);
         }
+      } else if (!SaveTemps) {
+        TempFileRemove(FileCopy);
       }
       successes.push_back(File);
     } else {
       failures.push_back(File);
+
+      if (!SaveTemps)
+        TempFileRemove(FileCopy);
     }
     // Stop at 1
     // break;

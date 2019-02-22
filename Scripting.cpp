@@ -377,6 +377,32 @@ bool lua_get_list(const char *func, vector<string> &OL, vector<string> &IL,
   return ret;
 }
 
+bool lua_get_list(const char *func, vector<string> &OL, vector<string> &IL,
+                  string &S1, string &S2, string &S3, string &S4, string &S5) {
+  bool ret = false;
+  int i = 0;
+  lua_getglobal(L, func);
+  putStrings(IL);
+  i++;
+  lua_pushstring(L, S1.c_str());
+  i++;
+  lua_pushstring(L, S2.c_str());
+  i++;
+  lua_pushstring(L, S3.c_str());
+  i++;
+  lua_pushstring(L, S4.c_str());
+  i++;
+  lua_pushstring(L, S5.c_str());
+  i++;
+  if (lua_pcall(L, i, 1, 0)) {
+    fprintf(stderr, "Error: %s \n", lua_tostring(L, -1));
+    lua_pop(L, 1);
+  } else {
+    ret = getStrings(OL, -1);
+  }
+  return ret;
+}
+
 bool lua_get_string(const char *func, string &OS) {
   bool ret = false;
   lua_getglobal(L, func);
