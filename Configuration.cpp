@@ -22,8 +22,8 @@ bool GetTestStages(vector<string> &TS, string &TC) {
 }
 
 bool GetTestCommandLine(vector<string> &OCL, vector<string> &ICL, string &TC,
-                        string &TS, string &IF, string &OF) {
-  bool ret = LuaGetTestCommandLine(OCL, ICL, TC, TS, IF, OF);
+                        string &TS, string &IF, string &OF, string &Exe) {
+  bool ret = LuaGetTestCommandLine(OCL, ICL, TC, TS, IF, OF, Exe);
   return ret;
 }
 

@@ -49,6 +49,9 @@ bool lua_get_list(const char *func, vector<string> &OL, vector<string> &IL,
                   string &IS1, string &IS2, string &IS3);
 bool lua_get_list(const char *func, vector<string> &OL, vector<string> &IL,
                   string &IS1, string &IS2, string &IS3, string &IS4);
+bool lua_get_list(const char *func, vector<string> &OL, vector<string> &IL,
+                  string &IS1, string &IS2, string &IS3, string &IS4,
+                  string &IS5);
 bool lua_get_string(const char *func, string &OS);
 bool lua_get_string(const char *func, string &OL, string &IS);
 
@@ -63,8 +66,8 @@ bool lua_get_string(const char *func, string &OL, string &IS);
 #define LuaGetS2SCommandLine(OCL, ICL, IF, OF, X)                              \
   lua_get_list("GetS2SCommandLine", OCL, ICL, IF, OF, X)
 #define LuaGetS2SExtension(OS) lua_get_string("GetS2SExtension", OS)
-#define LuaGetTestCommandLine(OCL, ICL, TC, TS, IF, OF)                        \
-  lua_get_list("GetTestCommandLine", OCL, ICL, TC, TS, IF, OF)
+#define LuaGetTestCommandLine(OCL, ICL, TC, TS, IF, OF, Exe)                   \
+  lua_get_list("GetTestCommandLine", OCL, ICL, TC, TS, IF, OF, Exe)
 #define LuaGetTestConfigurations(OL, X, E)                                     \
   lua_get_list("GetTestConfigurations", OL, X, E)
 #define LuaGetTestExtension(OS, TS) lua_get_string("GetTestExtension", OS, TS)
