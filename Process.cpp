@@ -240,9 +240,12 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
     close(stderr_pipe[0]);
     close(stderr_pipe[1]);
 
-    for (auto a : A)
-      std::cout << a << " ";
-    std::cout << std::endl;
+    //
+    // DEBUGGING
+    // Print out the command line
+    // for (auto a : A)
+    //  std::cout << a << " ";
+    // std::cout << std::endl;
 
     exec_status = execvp(Argv[0], const_cast<char **>(Argv.data()));
     if (exec_status < 0) {
@@ -331,10 +334,13 @@ static int _Process(vector<string> &A, string &StdIn, string &StdOut,
           no_work_done = 0;
       }
 
-      wait_status = waitpid(pid, &Status, WNOHANG);
-      if (wait_status > 0) {
-        done = true;
-        continue;
+      // Do not wait if we are already done
+      if (!done) {
+        wait_status = waitpid(pid, &Status, WNOHANG);
+        if (wait_status > 0) {
+          done = true;
+          continue;
+        }
       }
 
       if (childin != nullptr) {
