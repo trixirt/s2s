@@ -95,7 +95,7 @@ end
 
 function IsS2SOk(I)
   local r = 0
-  if I > 1 then
+  if I > 1 and I < 127 then
     r = 1
   end
   return r
