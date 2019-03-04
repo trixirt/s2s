@@ -177,6 +177,8 @@ int main(int argc, char **argv) {
               cout << std::endl;
             }
             Result = Process(S2SCL, dummy, s2sStdout, s2sStderr);
+            if (Verbose)
+              cout << "Returns : " << Result << std::endl;
 
             if (SaveTemps) {
               fprintf(stdout, "S2S input  temp file %s\n", FileCopy.c_str());
@@ -201,6 +203,8 @@ int main(int argc, char **argv) {
                     }
                     Result = Process(EditorCL, editorStdin, editorStdout,
                                      editorStderr);
+                    if (Verbose)
+                      cout << "Returns : " << Result << std::endl;
 
                     if (SaveTemps) {
                       fprintf(stdout, "Editor input temp file %s\n",
@@ -243,6 +247,8 @@ int main(int argc, char **argv) {
                 cout << std::endl;
               }
               Result = Process(S2SCL);
+              if (Verbose)
+                cout << "Returns : " << Result << std::endl;
               if (IsS2SOk(Result)) {
                 string editorExt;
                 if (GetEditorExtension(editorExt)) {
@@ -251,6 +257,8 @@ int main(int argc, char **argv) {
                     if (GetEditorCommandLine(EditorCL, ICL, dummy, FileCopy,
                                              Exe)) {
                       Result = Process(EditorCL, editorStdin, dummy, dummy);
+                      if (Verbose)
+                        cout << "Returns : " << Result << std::endl;
                       if (IsEditorOk(Result)) {
                         editorOk = true;
                       }
@@ -259,6 +267,8 @@ int main(int argc, char **argv) {
                     if (GetEditorCommandLine(EditorCL, ICL, s2sOut, FileCopy,
                                              Exe)) {
                       Result = Process(EditorCL);
+                      if (Verbose)
+                        cout << "Returns : " << Result << std::endl;
                       if (IsEditorOk(Result)) {
                         editorOk = true;
                       }
@@ -306,6 +316,8 @@ int main(int argc, char **argv) {
                   }
 
                   Result = Process(OCL);
+                  if (Verbose)
+                    cout << "Returns : " << Result << std::endl;
                   if (!IsTestOk(Result, ts)) {
                     fprintf(stderr, "\nFAILED %s\n", File.c_str());
                     fflush(stderr);
@@ -334,6 +346,8 @@ int main(int argc, char **argv) {
         }
 
         Result = Process(DiffCL);
+        if (Verbose)
+          cout << "Returns : " << Result << std::endl;
         if (IsDiffOk(Result)) {
           if (IsOverWriteOk()) {
             TempFileOverWrite(File, FileCopy);
