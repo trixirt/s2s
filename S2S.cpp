@@ -266,6 +266,12 @@ int main(int argc, char **argv) {
                   } else {
                     if (GetEditorCommandLine(EditorCL, ICL, s2sOut, FileCopy,
                                              Exe)) {
+		      if (Verbose) {
+		        cout << "Editor Command line" << std::endl;
+                        for (auto s : EditorCL)
+                          cout << s << " ";
+                        cout << std::endl;
+                      }
                       Result = Process(EditorCL);
                       if (Verbose)
                         cout << "Returns : " << Result << std::endl;
