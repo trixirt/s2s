@@ -176,7 +176,7 @@ end
 
 function GetEditorCommandLine(CommandLine, InputFile, OutputFile, Exe)
   local r = {}
-  r[#r+1] = "noreroder_fix_includes.py"
+  r[#r+1] = "noreorder_fix_includes.py"
   r[#r+1] = InputFile
   return r
 end
