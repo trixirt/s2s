@@ -145,7 +145,12 @@ function GetS2SCommandLine(CommandLine, InputFile, OutputFile, Exe)
   r[#r+1] = "--no_reorder"
   r[#r+1] = "-Xiwyu"
   r[#r+1] = "--output_replacements_xml=" .. OutputFile
-
+  --
+  -- Keep list
+  -- This is a list of headers that iwyu deletes but are really needed
+  local keepList = {
+    -- Add your headers as strings here
+  }
   r[#r+1] = "-x"
   if Exe == "c++" then
     r[#r+1] = "c++"

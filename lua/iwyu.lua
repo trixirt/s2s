@@ -73,6 +73,17 @@ function GetS2SCommandLine(CommandLine, InputFile, OutputFile, Exe)
   r[#r+1] = "include-what-you-use"
   r[#r+1] = "-Xiwyu"
   r[#r+1] = "--verbose=3"
+  --
+  -- Keep list
+  -- This is a list of headers that iwyu deletes but are really needed
+  local keepList = {
+    -- Add your headers as strings here
+  }
+  for _, v in ipairs(keepList) do
+    r[#r+1] = "-Xiwyu"
+    r[#r+1] = "--keep=" .. v
+  end
+
   r[#r+1] = "-x"
   -- check if the extension is cpp or cc
   local ext = string.match(InputFile, '[^.]+$')
