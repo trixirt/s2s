@@ -151,6 +151,11 @@ function GetS2SCommandLine(CommandLine, InputFile, OutputFile, Exe)
   local keepList = {
     -- Add your headers as strings here
   }
+  for _, v in ipairs(keepList) do
+    r[#r+1] = "-Xiwyu"
+    r[#r+1] = "--keep=" .. v
+  end
+
   r[#r+1] = "-x"
   if Exe == "c++" then
     r[#r+1] = "c++"
