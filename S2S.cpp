@@ -43,8 +43,9 @@ static cl::opt<string> Filter("db-filter");
 static cl::opt<string> DB("db");
 static cl::opt<bool> Verbose("verbose");
 static cl::opt<bool> SaveTemps("save-temps");
+static cl::opt<bool> NoCopy("no-copy");
 
-void scrub_cl(vector<string> &CL, string &D, string &FD, string &F) {
+void scrub_cl(vector<string> &CL, string &D, string &FD, string &F, string &OF) {
   if (CL.begin() != CL.end())
     CL.erase(CL.begin());
 
@@ -59,8 +60,10 @@ void scrub_cl(vector<string> &CL, string &D, string &FD, string &F) {
   i = find(CL.begin(), CL.end(), "-o");
   if (i != CL.end()) {
     auto j = next(i, 1);
-    if (j != CL.end())
+    if (j != CL.end()) {
+      OF = *j;
       CL.erase(j);
+    }
     i = find(CL.begin(), CL.end(), "-o");
     if (i != CL.end()) {
       CL.erase(i);
@@ -133,6 +136,7 @@ int main(int argc, char **argv) {
     path f = CC.Filename;
     path d = CC.Directory;
     path p;
+    std::string OriginalOuput = "";
 
     if (f.is_absolute())
       p = f;
@@ -153,7 +157,7 @@ int main(int argc, char **argv) {
     string Ext = boost::filesystem::extension(File);
     string FileDirectory = p.parent_path().string();
 
-    scrub_cl(CC.CommandLine, CC.Directory, FileDirectory, CC.Filename);
+    scrub_cl(CC.CommandLine, CC.Directory, FileDirectory, CC.Filename, OriginalOuput);
 
     vector<string> EditorCL, S2SCL, ICL;
     for (auto c : CC.CommandLine)
@@ -161,8 +165,9 @@ int main(int argc, char **argv) {
 
     int Result;
     bool editorOk = false;
-    string FileCopy;
-    TempFileCopy(FileCopy, File, Ext);
+    string FileCopy = File;
+	if (!NoCopy)
+		TempFileCopy(FileCopy, File, Ext);
     if (FileCopy.size()) {
       string dummy;
       string editorExt, s2sExt;
@@ -306,8 +311,9 @@ int main(int argc, char **argv) {
             for (auto ts : TS) {
               string ext;
               GetTestExtension(ext, ts);
-              string tf;
-              TempFileName(ext, tf);
+              string tf = OriginalOuput;
+	      if (!NoCopy)
+	        TempFileName(ext, tf);
               if (tf.size()) {
                 string OF = tf;
                 vector<string> OCL;
@@ -329,7 +335,7 @@ int main(int argc, char **argv) {
                     fflush(stderr);
                     testOk = false;
                   }
-                  if (IF != FileCopy && !SaveTemps) {
+                  if (IF != FileCopy && !SaveTemps && !NoCopy) {
                     TempFileRemove(IF);
                   }
                   IF = OF;
@@ -357,20 +363,20 @@ int main(int argc, char **argv) {
         if (IsDiffOk(Result)) {
           if (IsOverWriteOk()) {
             TempFileOverWrite(File, FileCopy);
-          } else if (!SaveTemps) {
+          } else if (!SaveTemps && !NoCopy) {
             TempFileRemove(FileCopy);
           }
-        } else if (!SaveTemps) {
+        } else if (!SaveTemps && !NoCopy) {
           TempFileRemove(FileCopy);
         }
-      } else if (!SaveTemps) {
+      } else if (!SaveTemps && !NoCopy) {
         TempFileRemove(FileCopy);
       }
       successes.push_back(File);
     } else {
       failures.push_back(File);
 
-      if (!SaveTemps)
+      if (!SaveTemps && !NoCopy)
         TempFileRemove(FileCopy);
     }
     // Stop at 1
