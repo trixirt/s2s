@@ -67,11 +67,9 @@ void scrub_cl(vector<string> &CL, string &D, string &FD, string &F) {
     }
   }
   //
-  // Because the source is moving, add an include path
-  // back to the original source
+  // Because the source is moving convert to absolute paths
   string sd = "-I";
-  string s = sd + FD;
-  CL.insert(CL.begin(), s);
+  string s;
   for (auto cl : CL) {
     if (boost::algorithm::starts_with(cl, sd)) {
       s = cl.substr(2, string::npos);
@@ -126,6 +124,7 @@ int main(int argc, char **argv) {
 
   for (auto CC : Compilations->getAllCompileCommands()) {
     string Exe = CC.CommandLine[0];
+
     if (Filter != "")
       if (!FilterDBEntry(CC.CommandLine, CC.Filename, CC.Directory, Exe))
         continue;
@@ -311,8 +310,6 @@ int main(int argc, char **argv) {
               if (tf.size()) {
                 string OF = tf;
                 vector<string> OCL;
-                for (auto c : CC.CommandLine)
-                  ICL.push_back(c);
                 if (GetTestCommandLine(OCL, ICL, tc, ts, IF, OF, Exe)) {
                   if (Verbose) {
                     cout << "Test Command line" << std::endl;
