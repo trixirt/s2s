@@ -6,7 +6,7 @@ project(s2s)
 find_package(LLVM CONFIG REQUIRED)
 find_package(Clang CONFIG REQUIRED)
 find_package(Lua51 REQUIRED)
-find_package(Boost REQUIRED)
+find_package(Boost COMPONENTS system filesystem REQUIRED)
 
 list(APPEND CMAKE_MODULE_PATH ${LLVM_DIR})
 include(AddLLVM)
@@ -51,8 +51,7 @@ target_link_libraries(s2s
   clangDriver
   clangTooling
   ${LUA_LIBRARIES}
-  boost_filesystem
-  boost_system
+  ${Boost_LIBRARIES}
   )
 
 # Install programs
