@@ -69,10 +69,13 @@ void scrub_cl(vector<string> &CL, string &D, string &FD, string &F, string &OF) 
       CL.erase(i);
     }
   }
-  //
-  // Because the source is moving convert to absolute paths
+  // Because the source is moving, add an include path
+  // back to the original source
   string sd = "-I";
-  string s;
+  string s = sd + FD;
+  CL.insert(CL.begin(), s);
+  //
+  // Because the source is moving convert from relative to absolute paths
   for (auto cl : CL) {
     if (boost::algorithm::starts_with(cl, sd)) {
       s = cl.substr(2, string::npos);
