@@ -73,7 +73,7 @@ void scrub_cl(vector<string> &CL, string &D, string &FD, string &F, string &OF) 
   // back to the original source
   string sd = "-I";
   string s = sd + FD;
-  CL.insert(CL.begin(), s);
+  CL.push_back(s);
   //
   // Because the source is moving convert from relative to absolute paths
   for (auto cl : CL) {
